@@ -11,3 +11,7 @@ Thumbs.db
 .dev.vars.*
 
 node_modules/
+
+# D1 백업 — 다른 사람들의 기록이 담긴 개인 데이터라 커밋하지 않는다
+backup-*.json
+*.d1.sql

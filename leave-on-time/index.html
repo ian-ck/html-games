@@ -64,6 +64,9 @@
   header .nick b{color:var(--ink);font-weight:700}
   header .nick button{background:#202634;border:1px solid var(--line);color:var(--dim);
     border-radius:6px;padding:2px 7px;font-size:11px;cursor:pointer;font-family:inherit}
+  header .nick input{background:#0d1017;border:1px solid var(--accent);color:var(--ink);
+    border-radius:6px;padding:3px 8px;font-size:12px;font-family:inherit;width:150px;outline:none}
+  header .nick .tag{color:#69728a}
   header .nick button:hover{color:var(--ink);border-color:var(--accent)}
   header .best{font-size:12px;color:var(--warn)}
 
@@ -113,7 +116,7 @@
   .tasklist span{background:#202634;border:1px solid var(--line);border-radius:7px;padding:5px 10px}
 
   #typing{
-    position:absolute;left:50%;bottom:22px;transform:translateX(-50%);
+    position:absolute;left:50%;bottom:22px;transform:translateX(-50%);z-index:20;
     width:520px;max-width:86%;display:none;text-align:left;line-height:1.5;
     border-radius:12px;box-shadow:0 16px 44px rgba(0,0,0,.6);overflow:hidden;
   }
@@ -163,7 +166,7 @@
   #typing.term .hint{color:#6b7386}
 
   #dish{
-    position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+    position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:20;
     width:452px;max-width:94%;display:none;text-align:left;
     background:#12161f;border:1px solid #2c3444;border-radius:14px;overflow:hidden;
     box-shadow:0 24px 60px rgba(0,0,0,.7);line-height:1.4;
@@ -182,6 +185,37 @@
   #dish .mash{font-weight:800;color:#8fe3ff;font-size:13.5px}
   #dish.pop .mash{transform:scale(1.14)}
   #dish .mash{display:inline-block;transition:transform .07s}
+
+  #anon{
+    position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:30;
+    width:560px;max-width:94%;max-height:88%;display:none;flex-direction:column;
+    background:#141821;border:1px solid #2c3444;border-radius:14px;overflow:hidden;
+    box-shadow:0 24px 60px rgba(0,0,0,.7);line-height:1.5;text-align:left;
+  }
+  #anon .ahead{display:flex;align-items:center;gap:8px;padding:11px 14px;font-size:13px;
+    font-weight:800;background:#1b2433;color:#cfe0ff}
+  #anon .ahead button{margin-left:auto;background:#232c3d;border:1px solid #303a4e;color:#9aa3b4;
+    border-radius:6px;padding:3px 9px;font-size:11.5px;cursor:pointer;font-family:inherit}
+  #anon .ahead button:hover{color:#fff}
+  #anon .alist{overflow-y:auto;padding:6px 14px 4px;flex:1;min-height:120px}
+  #anon .post{padding:9px 0;border-bottom:1px solid rgba(255,255,255,.06);font-size:13px;
+    display:flex;gap:9px;align-items:flex-start}
+  #anon .post .who{flex:0 0 88px;color:var(--accent);font-weight:700;font-size:12px;
+    line-height:1.3;word-break:break-all;align-self:flex-start}
+  #anon .post .txt{flex:1;color:var(--ink);word-break:break-word}
+  #anon .post .when{flex:0 0 auto;color:#5f687d;font-size:11px;white-space:nowrap}
+  #anon .post .del{flex:0 0 auto;background:none;border:0;color:#5f687d;cursor:pointer;font-size:12px;padding:0 2px}
+  #anon .post .del:hover{color:var(--bad)}
+  #anon .anote{color:#69728a;font-size:12px;padding:14px 0}
+  #anon .aform{display:flex;gap:8px;padding:11px 14px;border-top:1px solid #262f40;background:#111621}
+  #anon .aform input{flex:1;background:#0b0f16;border:1px solid #2c3444;color:var(--ink);
+    border-radius:8px;padding:9px 11px;font-size:13px;font-family:inherit;outline:none}
+  #anon .aform input:focus{border-color:var(--accent)}
+  #anon .aform button{background:var(--accent);color:#08130d;border:0;border-radius:8px;
+    padding:9px 16px;font-weight:800;font-size:13px;cursor:pointer;font-family:inherit}
+  #anon .acount{color:#5f687d;font-size:11px;align-self:center;min-width:44px;text-align:right}
+  header .nick button.board{padding:2px 9px}
+  header .nick button.board:disabled{opacity:.35;cursor:default}
 
   footer{margin-top:10px;font-size:11.5px;color:#6b7386;text-align:center;line-height:1.8}
   footer b{color:#8b94a8;font-weight:600}
@@ -224,6 +258,17 @@
       <canvas id="dishcv" width="420" height="230"></canvas>
       <div class="dbar"><i id="dishBar"></i></div>
       <div class="dfoot"><span class="mash" id="dishMsg">ENTER 연타!</span><span>Esc — 나중에</span></div>
+    </div>
+
+    <div id="anon">
+      <div class="ahead"><span>💬</span><span>익명게시판</span>
+        <button onclick="window.__board(0)">닫기</button></div>
+      <div class="alist" id="anonList"></div>
+      <div class="aform">
+        <input id="anonInput" maxlength="140" placeholder="한 줄 남기기 (Enter)">
+        <span class="acount" id="anonCount">0/140</span>
+        <button onclick="window.__post()">등록</button>
+      </div>
     </div>
 
     <div class="overlay" id="overlay"><div class="card" id="card"></div></div>
@@ -284,6 +329,8 @@ const el = {
   tTarget:document.getElementById('tTarget'), tInput:document.getElementById('tInput'),
   tBar:document.getElementById('tBar'), tHint:document.getElementById('tHint'),
   tTime:document.getElementById('tTime'),
+  anon:document.getElementById('anon'), anonList:document.getElementById('anonList'),
+  anonInput:document.getElementById('anonInput'), anonCount:document.getElementById('anonCount'),
   dish:document.getElementById('dish'), dishBar:document.getElementById('dishBar'),
   dishMsg:document.getElementById('dishMsg'), dishTime:document.getElementById('dishTime'),
 };
@@ -359,15 +406,82 @@ const esc = t => String(t).replace(/[&<>"']/g, c =>
 function makeNick(){
   const p1 = NICK_A[(Math.random()*NICK_A.length)|0];
   const p2 = NICK_B[(Math.random()*NICK_B.length)|0];
-  const id = (((Math.random()*4096)|0) + 4096).toString(16).slice(1);
-  return p1 + p2 + '#' + id;
+  return p1 + p2 + '#000';        // 꼬리는 호출부에서 pid 기준으로 붙인다
 }
+/* 신원(pid)과 표시 이름(nick)을 분리한다.
+   닉네임을 키로 쓰면 이름을 바꿀 때마다 순위표에 새 행이 생겨 같은 사람이 중복된다.
+   꼬리(#xxx)는 pid 앞 3자리라서 이름을 바꾸거나 🎲를 돌려도 그대로 유지된다. */
+function makePid(){
+  let h = '';
+  for (let i=0;i<16;i++) h += ((Math.random()*16)|0).toString(16);
+  return h;
+}
+/* pid 도입 전에 이미 플레이한 사람은 닉네임에서 pid 를 유도한다.
+   서버 마이그레이션이 옛 행에 같은 계산(SQLite lower(hex(nick)))을 적용하므로 기록이 이어진다.
+   앞부분만 자르면 앞 글자가 겹치는 닉네임끼리 충돌하므로 전체를 쓴다. */
+function pidFromNick(n){
+  let h = '';
+  for (const b of new TextEncoder().encode(n)) h += b.toString(16).padStart(2, '0');
+  return h;
+}
+const storedNick = localStorage.getItem('lot.nick') || '';
+let pid = localStorage.getItem('lot.pid') || '';
+if (!/^[0-9a-f]{16}$/.test(pid)){
+  pid = storedNick ? pidFromNick(storedNick) : makePid();
+  localStorage.setItem('lot.pid', pid);
+}
+// 꼬리는 기존 닉네임에 있던 값을 유지한다 (없으면 pid 에서 생성)
+const savedTail = (storedNick.match(/#([0-9a-f]{3})$/) || [])[1];
+const myTail = () => savedTail || pid.slice(0, 3);
+
 let nick = localStorage.getItem('lot.nick') || '';
-if (!nick){ nick = makeNick(); localStorage.setItem('lot.nick', nick); }
+// 이름은 유지하되 꼬리는 항상 pid 에서 파생 (기존 저장값 이관 포함)
+nick = (/^(.+)#[0-9a-f]{3}$/.test(nick) ? nick.replace(/#[0-9a-f]{3}$/, '') : '') || makeNick().split('#')[0];
+nick = nick.slice(0, 10);                       // 10자 제한으로 축소되며 기존 저장값 이관
+nick = nick + '#' + myTail();
+localStorage.setItem('lot.nick', nick);
 window.__reroll = () => {
-  nick = makeNick(); localStorage.setItem('lot.nick', nick);
+  nick = makeNick().split('#')[0] + '#' + myTail();   // 이름만 새로, 꼬리는 내 것
+  localStorage.setItem('lot.nick', nick);
+  nickEditing = false;
   refreshBoard();
 };
+
+/* 닉네임 직접 설정 — 이름 부분만 바꾸고 '#xxx' 꼬리는 유지한다.
+   서버가 /^[0-9A-Za-z가-힣]{2,10}#[0-9a-f]{3}$/ 만 받아들이므로 형식을 지켜야 하고,
+   꼬리를 남겨두면 같은 이름을 고른 사람끼리도 구분된다. */
+const NICK_NAME_RE = /^[0-9A-Za-z가-힣]{2,10}$/;
+let nickEditing = false;
+const nickTail = myTail;
+window.__editNick = () => {
+  nickEditing = true;
+  el.nick.innerHTML = '<input id="nickInput" maxlength="10" value="' + esc(nick.split('#')[0]) + '">'
+    + '<span class="tag">#' + esc(nickTail()) + '</span>'
+    + '<button onclick="window.__saveNick()">확인</button>'
+    + '<button onclick="window.__cancelNick()">취소</button>';
+  const i = document.getElementById('nickInput');
+  i.focus(); i.select();
+  i.addEventListener('keydown', ev => {
+    ev.stopPropagation();                       // 게임 조작으로 새지 않게
+    if (ev.key === 'Enter') window.__saveNick();
+    if (ev.key === 'Escape') window.__cancelNick();
+  });
+};
+window.__saveNick = () => {
+  const box = document.getElementById('nickInput');
+  const v = (box ? box.value : '').normalize('NFC').trim();
+  if (!NICK_NAME_RE.test(v)){
+    flash('❌ 닉네임은 한글·영문·숫자 2~10자');
+    if (box){ box.style.borderColor = '#ff5f6d'; box.focus(); }
+    return;                                     // 편집 상태 유지
+  }
+  nick = v + '#' + nickTail();
+  localStorage.setItem('lot.nick', nick);
+  nickEditing = false;
+  flash('✅ 닉네임을 ' + nick + ' 로 바꿨다');
+  refreshBoard();
+};
+window.__cancelNick = () => { nickEditing = false; };
 
 /* 백엔드 교체 지점 — LB.url 만 채우면 원격 순위표로 전환된다.
    비워두면 이 브라우저 localStorage 에만 기록이 남는다. */
@@ -376,7 +490,7 @@ const LB = {
   get remote(){ return !!this.url; },
   async top(n, who){
     if (!this.remote) return {rows:localTop(n), myRank:localRank(who), total:readBoard().length};
-    const q = '/top?n=' + n + '&nick=' + encodeURIComponent(who || '');
+    const q = '/top?n=' + n + '&pid=' + encodeURIComponent(pid);
     const r = await fetch(this.url + q, {cache:'no-store'});
     if (!r.ok) throw new Error('HTTP ' + r.status);
     return await r.json();          // { rows:[{nick,lv,score}], myRank, total }
@@ -390,14 +504,17 @@ const LB = {
 };
 function readBoard(){ try{ return JSON.parse(localStorage.getItem('lot.board') || '[]'); }catch(e){ return []; } }
 function localTop(n){ return readBoard().sort((x,y)=>y.score-x.score).slice(0,n); }
-function localRank(who){
+function localRank(){
   const b = readBoard().sort((x,y)=>y.score-x.score);
-  const i = b.findIndex(r => r.nick === who);
+  const i = b.findIndex(r => r.pid === pid);
   return i >= 0 ? i+1 : 0;
 }
 function localAdd(rec){
-  const b = readBoard(), i = b.findIndex(r => r.nick === rec.nick);
-  if (i >= 0){ if (rec.score > b[i].score) b[i] = rec; } else b.push(rec);
+  const b = readBoard(), i = b.findIndex(r => r.pid === rec.pid);
+  if (i >= 0){
+    b[i].nick = rec.nick;                       // 이름은 최신으로 갱신
+    if (rec.score > b[i].score) b[i] = rec;
+  } else b.push(rec);
   b.sort((x,y)=>y.score-x.score);
   localStorage.setItem('lot.board', JSON.stringify(b.slice(0,100)));
 }
@@ -414,7 +531,7 @@ function boardHTML(){
     + '</tbody></table>'
     + (boardRank ? '<p class="lbnote">내 순위 <b style="color:var(--accent)">' + boardRank + '위</b>'
                    + (boardTotal ? ' / ' + boardTotal + '명' : '') + '</p>'
-                 : '<p class="lbnote">아직 기록이 없다 — 한 판 하고 이름을 올려보자</p>')
+                 : '<p class="lbnote">아직 <b>내</b> 기록이 없다 — 한 판 하고 이름을 올려보자</p>')
     + (boardLocal ? '<p class="lbnote">서버에 연결되지 않아 이 브라우저 기록만 보여준다</p>' : '');
 }
 function lbBlock(title){
@@ -433,11 +550,121 @@ async function refreshBoard(){
   const host = document.getElementById('lbBody');
   if (host) host.innerHTML = boardHTML();
 }
+/* ============ 익명게시판 ============
+   서버가 없거나 오프라인이면 이 브라우저 localStorage 로 대체된다.
+   닉네임·본문은 남이 쓴 문자열이므로 반드시 esc() 로 escape 해서 넣는다. */
+const BOARD = {
+  get remote(){ return !!LB.url; },
+  async list(n, before){
+    if (!this.remote)
+      return readPosts().filter(r => !before || r.id < before).slice(0, n);
+    const r = await fetch(LB.url + '/posts?n=' + n + (before ? '&before=' + before : ''),
+                          {cache:'no-store'});
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    return (await r.json()).rows || [];
+  },
+  async write(text){
+    if (!this.remote){
+      savePosts([{id:Date.now(), nick, body:text, at:Date.now(), mine:true}].concat(readPosts()));
+      return;
+    }
+    const r = await fetch(LB.url + '/post', {method:'POST',
+      headers:{'content-type':'application/json'},
+      body:JSON.stringify({pid, nick, body:text})});
+    if (!r.ok){
+      const e = await r.json().catch(() => ({}));
+      throw new Error(e.error === 'too fast' ? '너무 빨라 — 10초 뒤에 다시' : (e.error || 'HTTP ' + r.status));
+    }
+  },
+  async remove(id){
+    if (!this.remote){ savePosts(readPosts().filter(x => x.id !== id)); return; }
+    await fetch(LB.url + '/post/del', {method:'POST',
+      headers:{'content-type':'application/json'}, body:JSON.stringify({pid, id})});
+  },
+};
+function readPosts(){ try{ return JSON.parse(localStorage.getItem('lot.posts') || '[]'); }catch(e){ return []; } }
+function savePosts(a){ localStorage.setItem('lot.posts', JSON.stringify(a.slice(0,100))); }
+function ago(t){
+  const d = Math.max(0, Date.now() - t) / 1000;
+  if (d < 60) return '방금';
+  if (d < 3600) return Math.floor(d/60) + '분 전';
+  if (d < 86400) return Math.floor(d/3600) + '시간 전';
+  return Math.floor(d/86400) + '일 전';
+}
+window.__board = open => {
+  el.anon.style.display = open ? 'flex' : 'none';
+  if (open){ el.anonInput.value = ''; el.anonCount.textContent = '0/140'; loadPosts(true); el.anonInput.focus(); }
+};
+
+/* 무한스크롤 — 최신 30개를 먼저 받고, 바닥에 닿으면 커서(마지막 id)로 다음 장을 이어 붙인다 */
+const PAGE = 30;
+let postRows = [], postDone = false, postBusy = false, postLocal = false;
+async function loadPosts(reset){
+  if (postBusy) return;
+  postBusy = true;
+  if (reset){ postRows = []; postDone = false; postLocal = false;
+              el.anonList.innerHTML = '<p class="anote">불러오는 중…</p>'; }
+  const before = postRows.length ? +postRows[postRows.length-1].id : 0;
+  let rows;
+  try{ rows = await BOARD.list(PAGE, before); }
+  catch(e){
+    rows = readPosts().filter(r => !before || r.id < before).slice(0, PAGE);
+    postLocal = true;
+  }
+  if (rows.length < PAGE) postDone = true;
+  postRows = postRows.concat(rows);
+  renderPosts(!reset);          // 이어붙이는 경우 스크롤 위치 유지
+  postBusy = false;
+}
+function renderPosts(keepScroll){
+  const keep = keepScroll ? el.anonList.scrollTop : 0;
+  if (!postRows.length){
+    el.anonList.innerHTML = '<p class="anote">아직 아무도 안 남겼다 — 첫 줄을 써보자</p>';
+    return;
+  }
+  el.anonList.innerHTML = postRows.map(r =>
+      '<div class="post"><span class="who">' + esc(r.nick) + '</span>'
+    + '<span class="txt">' + esc(r.body) + '</span>'
+    + '<span class="when">' + ago(+r.at) + '</span>'
+    + '<button class="del" title="내 글이면 삭제된다" onclick="window.__unpost(' + (+r.id) + ')">✕</button>'
+    + '</div>').join('')
+    + (postLocal ? '<p class="anote">서버에 연결되지 않아 이 브라우저 기록만 보여준다</p>'
+       : postDone ? '<p class="anote">— 여기까지 —</p>' : '<p class="anote">스크롤하면 더 불러온다…</p>');
+  el.anonList.scrollTop = keep;      // innerHTML 교체로 초기화된 위치를 복원
+}
+el.anonList.addEventListener('scroll', () => {
+  if (postDone || postBusy) return;
+  const e = el.anonList;
+  if (e.scrollTop + e.clientHeight >= e.scrollHeight - 60) loadPosts(false);
+});
+window.__post = async () => {
+  const text = (el.anonInput.value || '').normalize('NFC').replace(/\s+/g, ' ').trim();
+  if (!text){ el.anonInput.focus(); return; }
+  el.anonInput.value = ''; el.anonCount.textContent = '0/140';
+  try{ await BOARD.write(text); }
+  catch(e){
+    // 실패해도 목록은 유지 — 위에 사유만 덧붙인다
+    el.anonList.innerHTML = '<p class="anote" style="color:#ff5f6d">등록 실패 — ' + esc(e.message) + '</p>'
+      + el.anonList.innerHTML;
+    return;
+  }
+  loadPosts(true);
+};
+window.__unpost = async id => { await BOARD.remove(id); loadPosts(true); };
+el.anonInput.addEventListener('input', () => {
+  el.anonCount.textContent = el.anonInput.value.length + '/140';
+});
+el.anonInput.addEventListener('keydown', e => {
+  e.stopPropagation();                       // 게임 조작으로 새지 않게
+  if (e.key === 'Enter') window.__post();
+  if (e.key === 'Escape') window.__board(0);
+});
+
 function report(){
   if (skipped) return;                       // ?day= 로 건너뛴 판은 기록하지 않는다
   const lv = state === 'clear' ? wave : Math.max(0, wave-1);
   if (score <= 0) return;
-  LB.submit({nick, lv, score, seed:seedLabel()})
+  LB.submit({pid, nick, lv, score, seed:seedLabel()})
     .then(refreshBoard).catch(() => { boardErr = '기록 전송 실패'; });
 }
 
@@ -519,7 +746,8 @@ function buildMap(){
     dec('Chair', d.x+16, d.y+52, 32, 32);
   });
   // 사물함 (가방)
-  w(32,32,64,64,'prop','Big-Filing-Cabinet');
+  const LK = LOCKERS[lockerIdx];
+  w(LK.x, LK.y, 64, 64, 'prop', 'Big-Filing-Cabinet');
   // 팀장 자리
   w(640,256,64,64,'desk','Boss-Desk');
   dec('Boss-Chair',640,318,64,64);
@@ -539,13 +767,22 @@ function buildMap(){
   // 시야를 막는 엄폐물
   w(608,96,64,64,'prop','Big-Plant');
   w(512,288,64,64,'prop','Tall-Bookshelf');
-  w(576,448,64,64,'prop','Big-Plant');
+  w(704,192,64,64,'prop','Big-Plant');
   // 벽 장식
   dec('Wall-Clock',256,0,32,32); dec('Wall-Note',320,0,32,32); dec('Wall-Graph',352,0,32,32);
   dec('Small-Plant',96,544,32,32); dec('Small-Plant',864,544,32,32);
   dec('Papers',352,544,32,32); dec('Folders',224,32,32,32);
 }
 const ELEV = {x:864, y:256, w:64, h:96};
+
+// 사물함 후보 3곳 — 완전 랜덤이면 맵 구성이 흐트러지므로 모서리 프리셋만 쓴다
+// x,y = 캐비닛 위치 / px,py = 가방을 챙기는 지점
+const LOCKERS = [
+  {x: 32, y: 32,  px: 64,  py:128, where:'왼쪽 위'},
+  {x: 32, y:512,  px: 64,  py:480, where:'왼쪽 아래'},
+  {x:576, y:448,  px:608,  py:528, where:'오른쪽 아래'},
+];
+let lockerIdx = 0;
 
 // 자리 후보 12곳 — 내 자리는 매 레벨 랜덤으로 정해진다
 const DESKS = [];
@@ -556,6 +793,10 @@ function pickDesks(){
   myDesk = r();
   do { errDesk = r(); } while (errDesk === myDesk);
   do { cupDesk = r(); } while (cupDesk === myDesk || cupDesk === errDesk);
+  lockerIdx = (rMap() * LOCKERS.length) | 0;
+  POINTS.locker.x = LOCKERS[lockerIdx].px;
+  POINTS.locker.y = LOCKERS[lockerIdx].py;
+  LOC.locker = '사물함 (' + LOCKERS[lockerIdx].where + ')';
   const set = (k, i) => { POINTS[k].x = DESKS[i].x + 32; POINTS[k].y = DESKS[i].y + 80; };
   set('desk', myDesk);   // 책상 앞(아래) 통로
   set('err',  errDesk);
@@ -590,7 +831,7 @@ const STARTS = [
   {x:830, y:540, why:'엘베 홀에서 통화하다 왔다'},
 ];
 const LOC = {desk:'내 자리 (초록 모니터)', err:'빨간 모니터 — 경고등을 찾아라', cup:'☕ 컵이 놓인 책상', sink:'탕비실 싱크대 (자판기 옆)', trash:'프린터 옆 쓰레기통',
-             locker:'사물함 (왼쪽 위)', wc:'엘베 옆 화장실'};
+             locker:'사물함', wc:'엘베 옆 화장실'};
 const INTRO = ['laptop','bag','commit','coffee','toilet','error','dish'];
 const ORDER = ['error','commit','laptop','coffee','dish','bag','toilet'];
 
@@ -1031,25 +1272,31 @@ function drawDish(){
 
 /* ============================ 입력 ============================ */
 const keys = {};
+/* 조작은 e.code(물리 키 위치)로 판정한다. e.key 는 한글 IME 상태에서
+   W/A/S/D 가 'ㅈ/ㅁ/ㄴ/ㅇ' 로 들어와 이동이 먹지 않기 때문. e.key 도 같이
+   저장해 두어 code 를 못 주는 환경에서도 동작하게 한다. */
+const PREVENT = ['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'];
 addEventListener('keydown', e => {
+  const c = e.code || '';
   if (dish.active){
-    if (e.key === 'Enter'){
+    if (c === 'Enter' || e.key === 'Enter'){
       e.preventDefault();
       if (!dish.held){ dish.held = true; dishPress(); }   // 누르고 있어도 1회만
-    } else if (e.key === 'Escape') endDish(false);
+    } else if (c === 'Escape' || e.key === 'Escape') endDish(false);
     return;
   }
   if (typing.active) return;
-  const k = e.key.toLowerCase();
-  if ([' ','arrowup','arrowdown','arrowleft','arrowright'].includes(k)) e.preventDefault();
-  keys[k] = true;
-  if (k === 'm'){ muted = !muted; flash(muted ? '🔇 음소거' : '🔊 소리 켜짐'); }
-  if (k === 'r' && state === 'playing') startWave(wave);
-  if ((k === ' ' || k === 'enter') && state !== 'playing' && state !== 'loading') advance();
+  if (PREVENT.indexOf(c) >= 0) e.preventDefault();
+  keys[c] = true;
+  if (e.key) keys[e.key.toLowerCase()] = true;
+  if (c === 'KeyM'){ muted = !muted; flash(muted ? '🔇 음소거' : '🔊 소리 켜짐'); }
+  if (c === 'KeyR' && state === 'playing') startWave(wave);
+  if ((c === 'Space' || c === 'Enter') && state !== 'playing' && state !== 'loading') advance();
 });
 addEventListener('keyup', e => {
-  if (e.key === 'Enter') dish.held = false;
-  keys[e.key.toLowerCase()] = false;
+  if (e.code === 'Enter' || e.key === 'Enter') dish.held = false;
+  if (e.code) keys[e.code] = false;
+  if (e.key) keys[e.key.toLowerCase()] = false;
 });
 // 창 포커스가 빠지면 keyup을 못 받아 키가 눌린 채로 박히는 것 방지
 const clearKeys = () => { for (const k in keys) keys[k] = false; };
@@ -1075,9 +1322,10 @@ window.__dbg = () => ({state, wave, phase,
        turn:+n.turn.toFixed(2), dir:+n.dir.toFixed(3)})),
   typeSum, typeCnt, caught, score,
   dish:{on:dish.active, prog:+dish.prog.toFixed(1), presses:dish.presses, held:dish.held, sec:+dish.elapsed.toFixed(1)},
-  seed:seedLabel(), myDesk, deskPt:{x:POINTS.desk.x, y:POINTS.desk.y},
+  seed:seedLabel(), pid, nick, myDesk, deskPt:{x:POINTS.desk.x, y:POINTS.desk.y},
   errDesk, errPt:{x:POINTS.err.x, y:POINTS.err.y},
   cupDesk, cupPt:{x:POINTS.cup.x, y:POINTS.cup.y}, carry,
+  locker:{idx:lockerIdx, where:LOCKERS[lockerIdx].where, x:POINTS.locker.x, y:POINTS.locker.y},
   assets:{done:nDone, fail:nFail, total:nTotal}});
 
 /* ============================ 태스크 ============================ */
@@ -1144,13 +1392,13 @@ function update(dt){
       }
     }
   } else {
-    player.sneaking = !!keys['shift'];
+    player.sneaking = !!(keys['ShiftLeft'] || keys['ShiftRight'] || keys['shift']);
     let vx=0, vy=0;
     if (player.stun <= 0){
-      if (keys['a']||keys['arrowleft'])  vx--;
-      if (keys['d']||keys['arrowright']) vx++;
-      if (keys['w']||keys['arrowup'])    vy--;
-      if (keys['s']||keys['arrowdown'])  vy++;
+      if (keys['KeyA'] || keys['ArrowLeft'])  vx--;
+      if (keys['KeyD'] || keys['ArrowRight']) vx++;
+      if (keys['KeyW'] || keys['ArrowUp'])    vy--;
+      if (keys['KeyS'] || keys['ArrowDown'])  vy++;
     } else {
       player.stun -= dt;
       if (player.stun <= 0) player.bubble = '';
@@ -1201,22 +1449,24 @@ function update(dt){
         n.anim += dt;
         const f = faceFromAngle(n.dir); n.face = f[0]; n.flip = f[1];
       }
-      if (n.type === 'walker' && player.stun <= 0 && !typing.active
+      if (n.type === 'walker' && player.stun <= 0 && !busyNow()
           && Math.hypot(player.x-n.x, player.y-n.y) < n.r+player.r+4)
         grab('스몰토크 발생', 3);
     }
   }
 
   let seen = 0;
-  if (player.stun <= 0){
+  if (player.stun <= 0 && !busyNow()){
     for (const n of npcs){
       if (n.type !== 'boss' && n.type !== 'exec') continue;
       seen = Math.max(seen, canSee(n, player.x, player.y));
     }
   }
-  alertMeter += seen > 0 ? dt*(.9+seen)*(player.sneaking?.55:1) : -dt*.85;
-  alertMeter = Math.max(0, Math.min(1, alertMeter));
-  if (alertMeter >= 1) grab('"김대리~ 잠깐만!"', 3);
+  if (!busyNow()){          // 작업 중엔 게이지를 그 자리에 동결 (안전지대는 아니다)
+    alertMeter += seen > 0 ? dt*(.9+seen)*(player.sneaking?.55:1) : -dt*.85;
+    alertMeter = Math.max(0, Math.min(1, alertMeter));
+    if (alertMeter >= 1) grab('"김대리~ 잠깐만!"', 3);
+  }
 
   // 미니게임(설거지)·타이핑 중에는 슬랙이 오지 않는다 — 모달이 겹쳐 답장을 못 보내는 문제 방지
   if (cfg.slack && !typing.active && !dish.active && phase === 'run' && player.stun <= 0){
@@ -1234,7 +1484,7 @@ function update(dt){
       meeting.t -= dt;
       if (meeting.t <= 0){
         const z = meeting.zone;
-        if (player.x>z.x && player.x<z.x+z.w && player.y>z.y && player.y<z.y+z.h)
+        if (!busyNow() && player.x>z.x && player.x<z.x+z.w && player.y>z.y && player.y<z.y+z.h)
           grab('📣 회의 끌려감', 3.5);
         meeting = null; meetT = 6 + rEvt()*3;
       }
@@ -1260,6 +1510,8 @@ function update(dt){
   }
   if (msgT > 0) msgT -= dt;
 }
+// 타이핑·미니게임 중에는 이동이 막혀 회피 수단이 없다 → 방해 효과를 무시한다
+const busyNow = () => typing.active || dish.active;
 function grab(text, sec){
   if (player.stun > 0) return;
   if (typing.active) endTyping(false, true);
@@ -1439,6 +1691,9 @@ function render(){
     if (!carry) floatIcon('mug', DESKS[cupDesk].x+32, DESKS[cupDesk].y-4, 28);  // ☕ 주우러 갈 곳
     else        floatIcon('mug', 688, 446, 28, true);                            // 🗑️ 버리러 갈 곳
   }
+  // 🎒 사물함이 매 레벨 옮겨다니므로 위치를 아이콘으로 알려준다
+  if (tasks.indexOf('bag') >= 0 && !done.bag)
+    floatEmoji('🎒', LOCKERS[lockerIdx].x + 32, LOCKERS[lockerIdx].y - 22, 26);
 
   drawElevator();
 
@@ -1491,6 +1746,16 @@ function floatIcon(sprite, cx, cy, size, arrow){
   }
   ctx.globalAlpha = 1;
 }
+function floatEmoji(ch, cx, cy, size){
+  const by = cy + Math.sin(perf*2.6)*3;
+  ctx.globalAlpha = .72 + Math.abs(Math.sin(perf*2.6))*.28;   // 항상 뚜렷하게
+  ctx.fillStyle = 'rgba(12,16,22,.7)';                        // 배경에 묻히지 않게 뒤판
+  ctx.beginPath(); ctx.arc(cx, by, size*.78, 0, 7); ctx.fill();
+  ctx.font = size + 'px "Apple Color Emoji","Segoe UI Emoji",sans-serif';
+  ctx.fillStyle = '#fff';
+  ctx.fillText(ch, cx, by);
+  ctx.globalAlpha = 1;
+}
 function bubble(x,y,text,color){
   ctx.font='bold 12px system-ui';
   const tw = ctx.measureText(text).width;
@@ -1530,8 +1795,13 @@ function drawElevator(){
 function syncHUD(){
   el.wave.innerHTML = 'LV.' + wave + ' <span style="color:#69728a;font-weight:400">· '+wave+'일차</span>';
   el.best.textContent = bestLv ? '🏆 최고 LV.' + bestLv + ' · ' + fmt(bestScore) + '점' : '';
-  el.nick.innerHTML = '나는 <b>' + esc(nick) + '</b>'
-    + '<button onclick="window.__reroll()" title="닉네임 다시 뽑기">🎲</button>';
+  if (!nickEditing)
+    el.nick.innerHTML = '<button class="board" onclick="window.__board(1)"'
+      + (state === 'playing' ? ' disabled title="게임이 끝난 뒤에 열 수 있다"' : ' title="익명게시판"')
+      + '>💬 게시판</button>'
+      + '나는 <b>' + esc(nick) + '</b>'
+      + '<button onclick="window.__editNick()" title="닉네임 직접 입력">✏️</button>'
+      + '<button onclick="window.__reroll()" title="랜덤으로 다시 뽑기">🎲</button>';
   el.scoreNow.textContent = fmt(score);
   el.scoreGain.textContent = (state === 'playing' && phase === 'run')
     ? '+' + fmt(scoreBreak().total) : '—';
@@ -1581,6 +1851,7 @@ function syncHUD(){
   el.actBar.style.width = pct + '%';
 
   const b = [];
+  if (busyNow()) b.push(['on','🛡️ 작업 중 — 방해 무시']);
   if (player.sneaking && !typing.active && player.stun <= 0) b.push(['on','🤫 살금살금']);
   if (carry) b.push(['warn','☕ 커피 들고 있음']);
   if (player.stun > 0) b.push(['bad','😱 정지']);

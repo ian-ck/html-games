@@ -23,7 +23,11 @@ const json = (data, status, origin) => new Response(JSON.stringify(data), {
 });
 
 // 닉네임 형식: 한글/영숫자 2~20자 + '#' + 16진수 3자. 형식 밖은 전부 거부한다.
-const NICK_RE = /^[0-9A-Za-z가-힣]{2,20}#[0-9a-f]{3}$/;
+const NICK_RE = /^[0-9A-Za-z가-힣]{2,10}#[0-9a-f]{3}$/;
+// 숨은 고유 ID — 이게 신원이고 닉네임은 표시용 라벨이다.
+// 신규는 16자 랜덤. pid 도입 전 사용자는 '닉네임 전체의 UTF-8 hex' 를 쓰기 때문에 길이가 가변이다.
+// (앞부분만 잘라 쓰면 앞 글자가 겹치는 닉네임끼리 같은 pid 가 되어 서로의 기록을 덮어쓴다)
+const PID_RE = /^[0-9a-f]{16,80}$/;
 
 // 레벨별 이론상 상한. 정상 플레이보다 넉넉하지만 999999 같은 값은 막는다.
 const maxScore = lv => 20000 * lv + 250 * lv * (lv + 1);
@@ -51,7 +55,6 @@ export default {
     /* ── 순위표 조회 ── */
     if (url.pathname === '/top' && req.method === 'GET') {
       const n = Math.min(50, Math.max(1, parseInt(url.searchParams.get('n') || '10', 10) || 10));
-      const who = (url.searchParams.get('nick') || '').normalize('NFC').slice(0, 32);
 
       const top = await env.DB.prepare(
         'SELECT nick, lv, score FROM scores ORDER BY score DESC, at ASC LIMIT ?'
@@ -59,9 +62,11 @@ export default {
 
       const cnt = await env.DB.prepare('SELECT COUNT(*) AS c FROM scores').first();
 
+      // 내 순위는 pid 로 찾는다 (닉네임은 바뀔 수 있으므로)
       let myRank = 0;
-      if (who && NICK_RE.test(who)) {
-        const me = await env.DB.prepare('SELECT score FROM scores WHERE nick = ?').bind(who).first();
+      const pid = (url.searchParams.get('pid') || '').toLowerCase();
+      if (PID_RE.test(pid)) {
+        const me = await env.DB.prepare('SELECT score FROM scores WHERE pid = ?').bind(pid).first();
         if (me) {
           const above = await env.DB.prepare(
             'SELECT COUNT(*) AS c FROM scores WHERE score > ?'
@@ -77,11 +82,13 @@ export default {
       let body;
       try { body = await req.json(); } catch { return json({ error: 'bad json' }, 400, allow); }
 
+      const pid   = String(body?.pid ?? '').toLowerCase();
       const nick  = String(body?.nick ?? '').normalize('NFC').trim();
       const lv    = Math.trunc(Number(body?.lv));
       const score = Math.trunc(Number(body?.score));
       const seed  = String(body?.seed ?? '').slice(0, 16);
 
+      if (!PID_RE.test(pid))                         return json({ error: 'bad pid' }, 400, allow);
       if (!NICK_RE.test(nick))                       return json({ error: 'bad nick' }, 400, allow);
       if (!Number.isFinite(lv) || lv < 1 || lv > 99) return json({ error: 'bad lv' }, 400, allow);
       if (!Number.isFinite(score) || score < 1)      return json({ error: 'bad score' }, 400, allow);
@@ -96,21 +103,80 @@ export default {
         'INSERT INTO rate (ip, at) VALUES (?, ?) ON CONFLICT(ip) DO UPDATE SET at = excluded.at'
       ).bind(ip, now).run();
 
-      // 닉네임당 최고 점수만 남긴다
+      // pid 당 한 행. 닉네임은 항상 최신으로 갱신하고 점수는 최고값만 유지한다.
       await env.DB.prepare(
-        `INSERT INTO scores (nick, lv, score, seed, at) VALUES (?, ?, ?, ?, ?)
-         ON CONFLICT(nick) DO UPDATE SET
+        `INSERT INTO scores (pid, nick, lv, score, seed, at) VALUES (?, ?, ?, ?, ?, ?)
+         ON CONFLICT(pid) DO UPDATE SET
+           nick  = excluded.nick,
            lv    = CASE WHEN excluded.score > scores.score THEN excluded.lv   ELSE scores.lv   END,
            seed  = CASE WHEN excluded.score > scores.score THEN excluded.seed ELSE scores.seed END,
            at    = CASE WHEN excluded.score > scores.score THEN excluded.at   ELSE scores.at   END,
            score = MAX(scores.score, excluded.score)`
-      ).bind(nick, lv, score, seed, now).run();
+      ).bind(pid, nick, lv, score, seed, now).run();
 
       // 오래된 레이트리밋 기록 청소 (드물게)
       if (Math.random() < 0.02)
         await env.DB.prepare('DELETE FROM rate WHERE at < ?').bind(now - 86400000).run();
 
       return json({ ok: true }, 200, allow);
+    }
+
+    /* ── 익명게시판: 목록 ── */
+    if (url.pathname === '/posts' && req.method === 'GET') {
+      const n = Math.min(100, Math.max(1, parseInt(url.searchParams.get('n') || '30', 10) || 30));
+      // 커서 페이지네이션 — before 보다 작은 id 를 가져온다 (id 는 AUTOINCREMENT 라 안정적)
+      const before = Math.trunc(Number(url.searchParams.get('before') || 0));
+      const r = before > 0
+        ? await env.DB.prepare(
+            'SELECT id, nick, body, at FROM posts WHERE id < ? ORDER BY id DESC LIMIT ?'
+          ).bind(before, n).all()
+        : await env.DB.prepare(
+            'SELECT id, nick, body, at FROM posts ORDER BY id DESC LIMIT ?'
+          ).bind(n).all();
+      return json({ rows: r.results || [] }, 200, allow);
+    }
+
+    /* ── 익명게시판: 작성 ── */
+    if (url.pathname === '/post' && req.method === 'POST') {
+      let body;
+      try { body = await req.json(); } catch { return json({ error: 'bad json' }, 400, allow); }
+
+      const pid  = String(body?.pid ?? '').toLowerCase();
+      const nick = String(body?.nick ?? '').normalize('NFC').trim();
+      // 한 줄 코멘트 — 줄바꿈·제어문자는 공백으로 눌러 담는다
+      const text = String(body?.body ?? '').normalize('NFC')
+        .replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim();
+
+      if (!PID_RE.test(pid))            return json({ error: 'bad pid' }, 400, allow);
+      if (!NICK_RE.test(nick))          return json({ error: 'bad nick' }, 400, allow);
+      if (text.length < 1)              return json({ error: 'empty' }, 400, allow);
+      if (text.length > 140)            return json({ error: 'too long' }, 400, allow);
+
+      // 도배 방지 — 점수 제출과 별도 카운터('p:' 접두사)
+      const ip = 'p:' + await hash((req.headers.get('cf-connecting-ip') || '?') + '|' + (env.SALT || 'toegeun'));
+      const now = Date.now();
+      const last = await env.DB.prepare('SELECT at FROM rate WHERE ip = ?').bind(ip).first();
+      if (last && now - last.at < 10000) return json({ error: 'too fast' }, 429, allow);
+      await env.DB.prepare(
+        'INSERT INTO rate (ip, at) VALUES (?, ?) ON CONFLICT(ip) DO UPDATE SET at = excluded.at'
+      ).bind(ip, now).run();
+
+      await env.DB.prepare('INSERT INTO posts (pid, nick, body, at) VALUES (?, ?, ?, ?)')
+        .bind(pid, nick, text, now).run();
+      return json({ ok: true }, 200, allow);
+    }
+
+    /* ── 익명게시판: 본인 글 삭제 ── */
+    if (url.pathname === '/post/del' && req.method === 'POST') {
+      let body;
+      try { body = await req.json(); } catch { return json({ error: 'bad json' }, 400, allow); }
+      const pid = String(body?.pid ?? '').toLowerCase();
+      const id  = Math.trunc(Number(body?.id));
+      if (!PID_RE.test(pid))                     return json({ error: 'bad pid' }, 400, allow);
+      if (!Number.isFinite(id) || id < 1)        return json({ error: 'bad id' }, 400, allow);
+      // pid 가 일치하는 글만 지워진다 — 남의 글은 건드릴 수 없다
+      const r = await env.DB.prepare('DELETE FROM posts WHERE id = ? AND pid = ?').bind(id, pid).run();
+      return json({ ok: true, deleted: r.meta?.changes || 0 }, 200, allow);
     }
 
     return json({ error: 'not found' }, 404, allow);

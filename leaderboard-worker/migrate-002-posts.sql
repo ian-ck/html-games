@@ -1,0 +1,9 @@
+-- 익명게시판 테이블 추가
+CREATE TABLE IF NOT EXISTS posts (
+  id   INTEGER PRIMARY KEY AUTOINCREMENT,
+  pid  TEXT NOT NULL,
+  nick TEXT NOT NULL,
+  body TEXT NOT NULL,
+  at   INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_posts_at ON posts(at DESC);

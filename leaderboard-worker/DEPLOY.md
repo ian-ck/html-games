@@ -71,3 +71,30 @@ curl -X POST https://.../score -H 'content-type: application/json' \
 완전히 막으려면 서버가 플레이를 재검증해야 하고, 그건 시드 + 입력 로그를 보내
 Worker 에서 재시뮬레이션하는 방식이다 (시드 기반 난수는 이미 준비돼 있다).
 사내 재미용 순위표 수준에서는 위 검증으로 충분하다.
+
+## 마이그레이션 기록
+
+스키마가 바뀔 때마다 `migrate-00N-*.sql` 을 추가한다. `--file` 은 D1 의 `/import` API 를
+쓰는데 인증 오류가 나는 경우가 있어, 실무에서는 같은 SQL 을 `--command` 로 한 줄에 넣어 실행했다.
+
+| 파일 | 내용 |
+|---|---|
+| `migrate-001-pid.sql` | 순위표 기본키를 닉네임 → pid 로 전환 (기존 기록 보존) |
+| `migrate-002-posts.sql` | 익명게시판 `posts` 테이블 추가 |
+| `migrate-003-pid-fullhex.sql` | pid 를 닉네임 전체 hex 로 재계산 (앞 16자만 쓰면 충돌) |
+
+**실행 전 반드시 백업.** `/import` 를 쓰지 않으므로 인증 문제와 무관하다.
+
+```bash
+wrangler d1 execute toegeun --remote --command "SELECT * FROM scores" --json > backup-scores.json
+```
+
+백업 파일에는 다른 사용자들의 기록이 들어있어 `.gitignore` 로 제외한다.
+
+### 배운 것
+
+- D1 의 `--command` 는 여러 문장을 **트랜잭션으로** 처리한다. 중간에 실패하면 전부 롤백된다.
+- SQLite 의 `ALTER TABLE ... RENAME TO` 는 **인덱스를 같은 이름으로 함께 이동**시킨다.
+  새 인덱스를 만들기 전에 기존 인덱스를 `DROP` 해야 이름 충돌이 없다.
+- 이관용 pid 를 닉네임 해시의 앞부분만 잘라 쓰면 안 된다. 한글은 글자당 3바이트라
+  16자(8바이트)로는 2.7자밖에 담기지 않아 앞 글자가 겹치는 닉네임끼리 충돌한다.
