@@ -1,0 +1,1201 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>퇴근 스쿨버스</title>
+<style>
+  :root{
+    --bg:#0f1116; --panel:#171a22; --line:#262b36;
+    --ink:#e8eaf0; --dim:#9aa3b4; --accent:#5ee1a0; --warn:#ffb54d; --bad:#ff5f6d;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{
+    background:radial-gradient(1200px 700px at 50% -10%,#1b2130,#0f1116 60%);
+    color:var(--ink);
+    font-family:"Pretendard","Apple SD Gothic Neo",system-ui,-apple-system,sans-serif;
+    display:flex;align-items:center;justify-content:center;padding:20px;
+  }
+  #app{width:1186px;max-width:100%}
+  #main{display:flex;gap:14px;align-items:flex-start}
+  #gamecol{flex:1 1 960px;min-width:0}
+  #side{flex:0 0 212px;display:flex;flex-direction:column;gap:10px}
+  @media (max-width:1210px){ #main{flex-wrap:wrap} #side{flex:1 1 100%;flex-direction:row} #side .panel{flex:1} }
+
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 13px}
+  .panel h3{margin:0 0 9px;font-size:11px;letter-spacing:.08em;color:#7b8497;font-weight:800;text-transform:uppercase}
+
+  #todo{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:7px}
+  #todo li{display:flex;gap:7px;align-items:flex-start;font-size:12.5px;line-height:1.35}
+  #todo .mark{flex:0 0 14px;font-size:11px;padding-top:1px}
+  #todo .ico{flex:0 0 16px}
+  #todo .txt{flex:1;min-width:0}
+  #todo em{display:block;font-style:normal;font-size:10.5px;color:#69728a;margin-top:1px}
+  #todo li.done .txt{color:#5ee1a0;text-decoration:line-through;opacity:.6}
+  #todo li.done em{text-decoration:none}
+  #todo li.lock{opacity:.42}
+  #todo li.active .txt{color:var(--warn);font-weight:700}
+  #todo li.active em{color:#9a8358}
+
+  .actlabel{font-size:12.5px;font-weight:700;margin-bottom:7px;min-height:17px}
+  .actlabel.idle{color:#69728a;font-weight:400}
+  .pbar{height:8px;background:#0d1017;border-radius:5px;overflow:hidden;border:1px solid #232a39}
+  .pbar i{display:block;height:100%;width:0;background:linear-gradient(90deg,#3fc98a,#5ee1a0);transition:width .05s linear}
+  .pbar.alert i{background:linear-gradient(90deg,#ffb54d,#ff5f6d)}
+  .badges{display:flex;flex-wrap:wrap;gap:5px;margin-top:9px}
+  .badge{font-size:10.5px;border-radius:99px;padding:3px 8px;background:#232a39;color:#9aa3b4}
+  .badge.on{background:#1d3a2c;color:#5ee1a0}
+  .badge.warn{background:#3a2a1d;color:var(--warn)}
+  .badge.bad{background:#3a1d21;color:var(--bad)}
+  .gaugerow{display:flex;justify-content:space-between;font-size:10.5px;color:#69728a;margin-bottom:5px}
+  .scorebig{font-size:26px;font-weight:800;letter-spacing:-.5px;font-variant-numeric:tabular-nums}
+  .scoresub{font-size:11.5px;color:#69728a;margin-top:3px}
+  .scoresub b{color:var(--accent);font-variant-numeric:tabular-nums}
+  .brk{display:flex;flex-direction:column;gap:5px;margin:14px auto 4px;max-width:340px;font-size:13px}
+  .brk div{display:flex;justify-content:space-between;color:var(--dim)}
+  .brk div b{color:var(--ink);font-variant-numeric:tabular-nums}
+  .brk div.sum{border-top:1px solid var(--line);padding-top:7px;margin-top:3px;color:var(--accent);font-weight:700}
+  .brk div.sum b{color:var(--accent);font-size:16px}
+  header{display:flex;align-items:baseline;gap:12px;margin-bottom:10px}
+  header h1{font-size:18px;margin:0;letter-spacing:-.4px}
+  header .sub{font-size:12px;color:var(--dim)}
+  header .best{margin-left:auto;font-size:12px;color:var(--warn)}
+
+  #hud{
+    display:grid;grid-template-columns:auto 1fr auto;gap:14px;align-items:center;
+    background:var(--panel);border:1px solid var(--line);border-radius:10px 10px 0 0;
+    padding:10px 14px;font-size:13px;
+  }
+  #wave{font-weight:700;color:var(--accent);white-space:nowrap}
+  #hudmid{font-size:12px;color:var(--dim);text-align:center}
+  #timer{font-variant-numeric:tabular-nums;font-weight:700;white-space:nowrap}
+  #timer.urgent{color:var(--bad)}
+  #timer.open{color:var(--accent)}
+
+  #stage{position:relative;line-height:0;border:1px solid var(--line);border-top:0;border-radius:0 0 10px 10px;overflow:hidden}
+  canvas{display:block;width:100%;height:auto;background:#20242e;image-rendering:pixelated}
+  #alertbar{height:4px;background:#000;overflow:hidden}
+  #alertfill{height:100%;width:0;background:linear-gradient(90deg,#ffb54d,#ff5f6d);transition:width .06s linear}
+
+  .overlay{
+    position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    background:rgba(10,12,16,.87);backdrop-filter:blur(2px);line-height:1.6;
+  }
+  .card{width:680px;max-width:92%;text-align:center;padding:8px}
+  .card h2{margin:0 0 6px;font-size:26px;letter-spacing:-.6px}
+  .card p{margin:6px 0;color:var(--dim);font-size:14px}
+  .keys{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin:14px 0}
+  .key{background:#202634;border:1px solid var(--line);border-radius:8px;padding:8px 12px;font-size:12.5px}
+  .key b{color:var(--accent)}
+  .btn{margin-top:12px;background:var(--accent);color:#08130d;font-weight:800;border:0;
+       border-radius:10px;padding:11px 22px;font-size:14px;cursor:pointer;font-family:inherit}
+  .btn:hover{filter:brightness(1.08)}
+  .big{font-size:40px;margin:4px 0}
+  .newthing{color:var(--warn);font-size:13.5px;margin-top:8px}
+  .tasklist{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin:10px 0;font-size:12.5px;color:var(--dim)}
+  .tasklist span{background:#202634;border:1px solid var(--line);border-radius:7px;padding:5px 10px}
+
+  #typing{
+    position:absolute;left:50%;bottom:22px;transform:translateX(-50%);
+    width:520px;max-width:86%;display:none;text-align:left;line-height:1.5;
+    border-radius:12px;box-shadow:0 16px 44px rgba(0,0,0,.6);overflow:hidden;
+  }
+  #typing .head{display:flex;align-items:center;gap:8px;padding:9px 14px;font-size:12.5px;font-weight:800}
+  #typing .head #tTime{margin-left:auto;font-variant-numeric:tabular-nums;font-weight:600;opacity:.85}
+  #typing .body{padding:12px 14px 13px}
+  #typing .msg{font-size:13px;margin-bottom:9px}
+  #typing .target{
+    font-size:15px;letter-spacing:.2px;margin-bottom:9px;word-break:break-all;
+    font-family:"SFMono-Regular",ui-monospace,Menlo,"Apple SD Gothic Neo",monospace;
+  }
+  #typing .target i{font-style:normal;opacity:.42}
+  #typing .target b{font-style:normal;font-weight:700}
+  #typing .target u{text-decoration:none;border-bottom:2px solid currentColor;animation:blink .9s steps(1) infinite}
+  @keyframes blink{50%{border-color:transparent}}
+  #typing input{width:100%;border-radius:8px;padding:9px 11px;font-size:14px;font-family:inherit;outline:none}
+  #typing .bar{height:4px;border-radius:2px;margin-top:9px;overflow:hidden}
+  #typing .bar i{display:block;height:100%;width:100%;background:#e01e5a;transition:width .08s linear}
+  #typing .hint{margin-top:7px;font-size:11px}
+  #typing.shake{animation:shk .3s}
+  @keyframes shk{0%,100%{transform:translateX(-50%)}25%{transform:translateX(calc(-50% - 7px))}75%{transform:translateX(calc(-50% + 7px))}}
+  #typing .enter{float:right;font-size:10.5px;opacity:.75}
+  #typing.slack{background:#f7f7f8;color:#1d1c1d}
+  #typing.slack .head{background:#4a154b;color:#fff}
+  #typing.slack .target{color:#1d1c1d}
+  #typing.slack .target b{color:#007a5a}
+  #typing.slack input{border:1px solid #c9c9cc;background:#fff;color:#1d1c1d}
+  #typing.slack .bar{background:#e0e0e2}
+  #typing.slack .hint{color:#616061}
+  #typing.term{background:#10131a;color:#cfd6e4;border:1px solid #2c3444}
+  #typing.term .head{background:#1a2030;color:#9fe8c4}
+  #typing.term .target{color:#7d8798}
+  #typing.term .target b{color:#5ee1a0}
+  #typing.term input{border:1px solid #2c3444;background:#0a0d13;color:#e8eaf0;
+                     font-family:"SFMono-Regular",ui-monospace,Menlo,monospace}
+  #typing.term .bar{background:#232a39}
+  #typing.term .bar i{background:#5ee1a0}
+  #typing.term .hint{color:#6b7386}
+
+  footer{margin-top:10px;font-size:11.5px;color:#6b7386;text-align:center;line-height:1.8}
+  footer b{color:#8b94a8;font-weight:600}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>🚌 퇴근 스쿨버스</h1>
+    <span class="sub">엘리베이터 도착 전까지 칼퇴해라!</span>
+    <span class="best" id="best"></span>
+  </header>
+
+  <div id="main">
+  <div id="gamecol">
+  <div id="hud">
+    <div id="wave">1일차</div>
+    <div id="hudmid"></div>
+    <div id="timer">—</div>
+  </div>
+
+  <div id="stage">
+    <canvas id="cv" width="960" height="608"></canvas>
+    <div id="alertbar"><div id="alertfill"></div></div>
+
+    <div id="typing">
+      <div class="head"><span id="tIcon">💬</span><span id="tTitle">팀장</span><span id="tTime"></span></div>
+      <div class="body">
+        <div class="msg" id="tMsg"></div>
+        <div class="target" id="tTarget"></div>
+        <input id="tInput" autocomplete="off" autocorrect="off" spellcheck="false">
+        <div class="bar"><i id="tBar"></i></div>
+        <div class="hint" id="tHint"></div>
+      </div>
+    </div>
+
+    <div class="overlay" id="overlay"><div class="card" id="card"></div></div>
+  </div>
+  </div><!-- /gamecol -->
+
+  <aside id="side">
+    <div class="panel">
+      <h3>점수</h3>
+      <div class="scorebig" id="scoreNow">0</div>
+      <div class="scoresub">지금 타면 <b id="scoreGain">+0</b></div>
+      <div class="scoresub" id="typeRow" style="display:none">⚡ 타이핑 <b id="typeSumEl">+0</b></div>
+    </div>
+    <div class="panel">
+      <h3>퇴근 체크리스트</h3>
+      <ul id="todo"></ul>
+    </div>
+    <div class="panel">
+      <h3>진행 상태</h3>
+      <div class="actlabel idle" id="actLabel">대기 중</div>
+      <div class="pbar"><i id="actBar"></i></div>
+      <div class="badges" id="badges"></div>
+    </div>
+    <div class="panel">
+      <h3>들킴 게이지</h3>
+      <div class="gaugerow"><span>안전</span><span id="alertPct">0%</span></div>
+      <div class="pbar alert"><i id="alertBar2"></i></div>
+    </div>
+  </aside>
+  </div><!-- /main -->
+
+  <footer>
+    <b>M</b> 음소거 · <b>R</b> 레벨 재시작 · 주소 뒤에 <b>?day=5</b> 로 특정 레벨부터 시작<br>
+    가구 <b>Free Furniture Office Equipment Set</b> by Antea (CC BY 4.0) ·
+    캐릭터 <b>Free Pixel Characters Pack</b> by Kettoman
+  </footer>
+</div>
+
+<script>
+(() => {
+"use strict";
+const cv = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+const W = 960, H = 608, T = 32;          // T = 타일 1칸(원본 16px 스프라이트를 2배로)
+
+const el = {
+  wave:document.getElementById('wave'), hudmid:document.getElementById('hudmid'),
+  timer:document.getElementById('timer'), alert:document.getElementById('alertfill'),
+  todo:document.getElementById('todo'), actLabel:document.getElementById('actLabel'),
+  scoreNow:document.getElementById('scoreNow'), scoreGain:document.getElementById('scoreGain'),
+  typeRow:document.getElementById('typeRow'), typeSumEl:document.getElementById('typeSumEl'),
+  actBar:document.getElementById('actBar'), badges:document.getElementById('badges'),
+  alertBar2:document.getElementById('alertBar2'), alertPct:document.getElementById('alertPct'),
+  overlay:document.getElementById('overlay'), card:document.getElementById('card'),
+  best:document.getElementById('best'),
+  panel:document.getElementById('typing'), tIcon:document.getElementById('tIcon'),
+  tTitle:document.getElementById('tTitle'), tMsg:document.getElementById('tMsg'),
+  tTarget:document.getElementById('tTarget'), tInput:document.getElementById('tInput'),
+  tBar:document.getElementById('tBar'), tHint:document.getElementById('tHint'),
+  tTime:document.getElementById('tTime'),
+};
+
+/* ============================ 애셋 ============================ */
+const FURN = ['Desk','Chair','Boss-Desk','Boss-Chair','Big-Filing-Cabinet','Water-Dispenser',
+  'Coffee-Machine','Vending-Machine','Big-Round-Table','Board','Printer-Furniture',
+  'Big-Office-Printer','Bin','Big-Plant','Small-Plant','Tall-Bookshelf','Toilet-Closed',
+  'WC-Sink','WC-Paper','Wall-Clock','Wall-Note','Wall-Graph','Mirror','Papers','Folders'];
+const SRC = {
+  ch1:'assets/characters/character1.png',
+  ch2:'assets/characters/character2.png',
+  ch3:'assets/characters/character3.png',
+  mug:'assets/furniture-extra/Coffee-Mug.png',
+};
+FURN.forEach(n => SRC[n] = 'assets/furniture/' + n + '.png');
+
+const IMG = {};
+let nTotal = 0, nDone = 0, nFail = 0, assetsReady = false;
+for (const k in SRC){
+  nTotal++;
+  const im = new Image();
+  const settle = () => {
+    if (nDone + nFail < nTotal) return;
+    assetsReady = true;
+    if (state === 'loading') boot();
+  };
+  im.onload  = () => { nDone++; settle(); };
+  im.onerror = () => { nFail++; settle(); };
+  im.src = SRC[k];
+  IMG[k] = im;
+}
+const has = n => { const i = IMG[n]; return i && i.complete && i.naturalWidth > 0; };
+function spr(n, x, y, w, h){
+  if (has(n)) ctx.drawImage(IMG[n], Math.round(x), Math.round(y), w, h);
+  else { ctx.fillStyle = '#4a5470'; ctx.fillRect(x, y, w, h); }
+}
+/* 캐릭터 시트: 32px 프레임 6x6 — r0 idle하 r1 걷기하 r2 idle측 r3 걷기측 r4 idle위 r5 걷기위
+   측면은 오른쪽을 보고 있으므로 왼쪽 이동은 좌우반전 */
+const FACE_ROW = {down:0, side:2, up:4};
+function drawChar(key, x, y, face, moving, t, flip){
+  ctx.save();
+  ctx.globalAlpha = .28; ctx.fillStyle = '#000';
+  ctx.beginPath(); ctx.ellipse(x, y - 2, 13, 5, 0, 0, 7); ctx.fill();
+  ctx.globalAlpha = 1;
+  ctx.translate(x, y);
+  if (flip) ctx.scale(-1, 1);
+  if (has(key)){
+    const base = FACE_ROW[face] || 0;
+    const row = moving ? base + 1 : base;
+    const n = moving ? 6 : 2;
+    const f = Math.floor(t * (moving ? 9 : 1.6)) % n;
+    ctx.drawImage(IMG[key], f*32, row*32, 32, 32, -32, -56, 64, 64);
+  } else { ctx.fillStyle='#c8d0e0'; ctx.fillRect(-9,-46,18,44); }
+  ctx.restore();
+}
+function faceFromAngle(a){
+  const c = Math.cos(a), s = Math.sin(a);
+  if (Math.abs(c) >= Math.abs(s)) return ['side', c < 0];
+  return [s > 0 ? 'down' : 'up', false];
+}
+
+/* ============================ 사운드 ============================ */
+let muted = false, actx = null;
+function beep(freq,dur,type='square',vol=.05){
+  if (muted) return;
+  try{
+    actx = actx || new (window.AudioContext||window.webkitAudioContext)();
+    const o=actx.createOscillator(), g=actx.createGain();
+    o.type=type; o.frequency.value=freq; g.gain.value=vol;
+    g.gain.exponentialRampToValueAtTime(.0001, actx.currentTime+dur);
+    o.connect(g); g.connect(actx.destination); o.start(); o.stop(actx.currentTime+dur);
+  }catch(e){}
+}
+const SFX = {
+  ding(){ beep(880,.16,'sine',.07); setTimeout(()=>beep(1320,.22,'sine',.06),120); },
+  caught(){ beep(180,.3,'sawtooth',.06); },
+  pick(){ beep(660,.08,'triangle',.05); },
+  key(){ beep(1500,.02,'square',.02); },
+  fail(){ beep(200,.5,'sawtooth',.07); setTimeout(()=>beep(120,.6,'sawtooth',.06),160); },
+  win(){ [660,880,1180].forEach((f,i)=>setTimeout(()=>beep(f,.16,'sine',.06), i*110)); },
+  notif(){ beep(1046,.08,'sine',.05); setTimeout(()=>beep(1318,.1,'sine',.05),90); },
+};
+
+/* ============================ 맵 (32px 격자 / 30x19칸) ============================ */
+const WALLS = [];   // 충돌 + (선택)시야차단 + 스프라이트
+const DECOR = [];   // 충돌 없는 장식
+function buildMap(){
+  WALLS.length = 0; DECOR.length = 0;
+  const w = (x,y,ww,hh,kind,sprite,bv=true)=>WALLS.push({x,y,w:ww,h:hh,kind,sprite,blocksVision:bv});
+  const dec = (sprite,x,y,ww,hh)=>DECOR.push({sprite,x,y,w:ww,h:hh});
+
+  // 외벽
+  w(0,0,W,T,'wall'); w(0,H-T,W,T,'wall'); w(0,0,T,H,'wall'); w(W-T,0,T,H,'wall');
+  // 엘베 홀 분리벽 — 통로는 y 256~352
+  w(768,T,T,224,'wall'); w(768,352,T,224,'wall');
+  // 화장실 아래벽 (입구는 왼쪽 x800~864)
+  w(864,160,64,T,'wall');
+  w(864,64,64,64,'prop','Toilet-Closed');
+  dec('WC-Sink',800,64,32,32); dec('WC-Paper',832,32,32,32); dec('Mirror',800,0,32,32);
+
+  // 자리 12개 + 의자
+  for (const x of [96,256,416]) for (const y of [64,192,320,448]){
+    w(x,y,64,64,'desk','Desk');
+    dec('Chair', x+16, y+52, 32, 32);
+  }
+  // 사물함 (가방)
+  w(32,32,64,64,'prop','Big-Filing-Cabinet');
+  // 팀장 자리
+  w(640,256,64,64,'desk','Boss-Desk');
+  dec('Boss-Chair',640,318,64,64);
+  // 탕비실
+  w(480,32,64,64,'prop','Water-Dispenser');
+  w(544,32,32,32,'prop','Coffee-Machine');
+  w(592,32,64,64,'prop','Vending-Machine');
+  // 회의실 (유리 — 보이지만 못 지나감)
+  w(672,32,16,128,'glass',null,false);
+  w(672,144,32,16,'glass',null,false);
+  w(736,144,32,16,'glass',null,false);
+  dec('Big-Round-Table',696,56,64,64); dec('Board',704,0,32,32);
+  // 프린터 / 쓰레기통
+  w(480,448,64,64,'prop','Printer-Furniture');
+  w(672,480,32,32,'prop','Bin');
+  // 시야를 막는 엄폐물
+  w(512,96,64,64,'prop','Big-Plant');
+  w(512,288,64,64,'prop','Tall-Bookshelf');
+  w(576,448,64,64,'prop','Big-Plant');
+  // 벽 장식
+  dec('Wall-Clock',256,0,32,32); dec('Wall-Note',320,0,32,32); dec('Wall-Graph',352,0,32,32);
+  dec('Small-Plant',96,544,32,32); dec('Small-Plant',864,544,32,32);
+  dec('Papers',352,544,32,32); dec('Folders',224,32,32,32);
+}
+const ELEV = {x:864, y:256, w:64, h:96};
+
+/* ============================ 퇴근 체크리스트 ============================ */
+const POINTS = {
+  desk  : {x:128, y:528, r:36},   // 내 자리 — 커밋 + 노트북
+  cup   : {x:128, y:432, r:30},   // 책상 위 마시던 커피
+  trash : {x:688, y:456, r:32},   // 쓰레기통
+  locker: {x:64,  y:128, r:32},   // 사물함
+  wc    : {x:848, y:136, r:32},   // 화장실 (엘베 옆)
+};
+const TASKS = {
+  commit:{icon:'⌨️', label:'git commit', kind:'type', at:'desk'},
+  laptop:{icon:'💻', label:'노트북 끄기', kind:'hold', hold:1.0, at:'desk', after:'commit'},
+  coffee:{icon:'☕', label:'커피 버리기', kind:'carry', hold:.5, at:'cup', to:'trash', hold2:.7},
+  bag   :{icon:'🎒', label:'가방 챙기기', kind:'hold', hold:.6, at:'locker'},
+  toilet:{icon:'🚻', label:'화장실', kind:'hold', hold:2.0, at:'wc'},
+};
+const STARTS = [
+  {x:288, y:528, why:'자리에서 기지개를 켰다'},
+  {x:368, y:416, why:'복도에서 커피 마시다 왔다'},
+  {x:600, y:544, why:'프린터 앞에서 서류 뽑고 왔다'},
+  {x:740, y:288, why:'팀장 앞에서 한참 붙잡혀 있었다'},
+  {x:700, y:176, why:'회의실에서 방금 나왔다'},
+  {x:830, y:540, why:'엘베 홀에서 통화하다 왔다'},
+];
+const LOC = {desk:'내 자리', cup:'내 자리 책상 위', trash:'프린터 옆 쓰레기통',
+             locker:'사물함 (왼쪽 위)', wc:'엘베 옆 화장실'};
+const INTRO = ['laptop','bag','commit','coffee','toilet'];
+const ORDER = ['commit','laptop','coffee','bag','toilet'];
+
+const COMMITS = [
+  'git commit -m "fix typo"',
+  'git commit -m "hotfix: null check"',
+  'git commit -m "chore: remove log"',
+  'git commit -m "fix: elevator bug"',
+  'git push origin main',
+  'git stash save wip',
+];
+const SLACKS = [
+  ['잠깐 시간 되세요?',       '지금 좀 바쁩니다'],
+  ['이거 오늘까지 되나요?',   '내일 오전에 드릴게요'],
+  ['5분만 콜 가능할까요?',    '회의 들어가봐야 해서요'],
+  ['아까 그 건 어떻게 됐죠?', '확인하고 공유드리겠습니다'],
+  ['혹시 퇴근하세요?',        '아직 자리에 있습니다'],
+  ['내일 아침 자료 있나요?',  '네 오늘 안에 올리겠습니다'],
+  ['슬랙 확인 좀 해주세요',   '죄송합니다 지금 봤어요'],
+  ['배포 언제 나가나요?',     '테스트 끝나면 바로 나갑니다'],
+];
+
+/* ============================ 웨이브 ============================ */
+function waveConfig(w){
+  const list = INTRO.slice(0, Math.min(INTRO.length, w + 1));
+  const BASE = {2:42, 3:53, 4:66, 5:78};
+  return {
+    tasks:list,
+    deadline: Math.max(34, BASE[list.length] - Math.max(0, w-4)*3),
+    gaze  : gazeConfig(w),
+    slack : w >= 2,
+    walker: Math.min(5, Math.max(0, Math.floor((w-1)*0.7))),
+    chat  : w >= 4,
+    exec  : w >= 5,
+    bosses: w >= 6 ? 2 : 1,
+    meeting: w >= 7,
+    slackLimit: Math.max(4.5, 8 - w*0.35),
+  };
+}
+const NEW_AT = {
+  2:'⌨️ 커밋 안 하고 퇴근하면 안 되죠 — 그리고 💬 슬랙이 오면 답장을 타이핑해야 한다.',
+  3:'☕ 마시던 커피를 쓰레기통까지 들고 가서 버려야 한다. 👀 팀장 시선에 되돌아보기가 추가된다.',
+  4:'🚻 화장실 한 번 다녀와야 한다 (엘베 옆). 🗣️ 잡담 무리가 복도를 점거.',
+  5:'🕴️ 임원 등장. 👀 팀장 시선이 3단 스캔으로 바뀐다 — 변곡점 6개.',
+  6:'👔👔 팀장 2명 체제. 둘의 시선 패턴이 서로 반대로 돈다.',
+  7:'📣 갑작스러운 회의 소집. 👀 팀장 시선이 불규칙해진다 — 변곡점 8개.',
+};
+const GAZE_NAME = ['좌우 왕복', '되돌아보기', '3단 스캔', '불규칙'];
+
+/* ============================ 상태 ============================ */
+const player = {x:288, y:528, r:14, speed:168, sneak:88, stun:0, bubble:'',
+                moving:false, sneaking:false, face:'down', flip:false, anim:0};
+const typing = {active:false, kind:'', target:'', limit:0, left:0, elapsed:0};
+let npcs=[], zones=[], tasks=[], done={}, carry=false;
+let elevator, timeLeft, phase, alertMeter, holdKey, holdT, msg, msgT;
+let slackT, meetT, meeting, typeCool = 0;
+let wave = 1, skipped = false, score = 0, caught = 0, typeSum = 0, typeCnt = 0;
+// 글자수 기준 기준시간(par)보다 빨리 치면 그만큼 가산점. 한글은 조합이 있어 par을 조금 더 준다.
+function typeBonus(kind, chars, sec){
+  const par = 1.0 + chars * (kind === 'term' ? .30 : .36);
+  const ratio = Math.max(0, Math.min(1, (par - sec) / par));
+  return Math.round(ratio * (kind === 'term' ? 600 : 450));
+}
+let bestLv = +(localStorage.getItem('lot.bestLv') || 0);
+let bestScore = +(localStorage.getItem('lot.bestScore') || 0);
+const fmt = n => n.toLocaleString('ko-KR');
+function scoreBreak(){
+  const base = wave*500, timeB = Math.round(Math.max(0,timeLeft)*100);
+  const taskB = tasks.length*200, cleanB = caught === 0 ? 1000 : 0;
+  return {base, timeB, taskB, cleanB, typeB: typeSum,
+          total: base+timeB+taskB+cleanB+typeSum};
+}
+let state = 'title';
+
+function startWave(w){
+  const c = waveConfig(w);
+  buildMap();
+  npcs = []; zones = [];
+  const st = STARTS[Math.min(STARTS.length-1, w-1)];
+  player.x = st.x; player.y = st.y; player.stun = 0; player.bubble = '';
+  player.face = 'down'; player.flip = false; player.anim = 0;
+  tasks = c.tasks.slice(); done = {}; tasks.forEach(t => done[t] = false); carry = false;
+  holdKey = null; holdT = 0; alertMeter = 0; msg = ''; msgT = 0; typeCool = 0;
+  timeLeft = c.deadline; phase = 'run'; caught = 0; typeSum = 0; typeCnt = 0;
+  elevator = {open:0};
+  slackT = 5 + Math.random()*4; meeting = null; meetT = 7;
+  endTyping(null, true);
+
+  npcs.push(boss('ch3', 672, 352, Math.PI, .62, c.gaze, 0));
+  if (c.bosses >= 2){
+    // 두 번째 팀장은 키앵글을 뒤집고 위상도 어긋나게 — 둘이 같이 움직이지 않는다
+    const g2 = {keys:c.gaze.keys.slice().reverse(), hold:c.gaze.hold, turn:c.gaze.turn};
+    npcs.push(boss('ch3', 240, 224, Math.PI/2, .80, g2, 2.7));
+  }
+  if (c.exec) npcs.push({type:'exec', key:'ch3', x:592, y:528, r:14, fov:1.5, range:245, dir:0,
+    wp:[{x:592,y:528},{x:592,y:288},{x:736,y:288},{x:736,y:528}], wi:1, speed:62,
+    face:'up', flip:false, anim:0});
+  // 순회 동료 — 책상 사이 통로만 지나가는 5개 경로
+  const paths = [
+    [{x:64,y:288},{x:64,y:544},{x:208,y:544},{x:208,y:288}],
+    [{x:544,y:544},{x:744,y:544},{x:744,y:416},{x:544,y:416}],
+    [{x:208,y:176},{x:640,y:176},{x:640,y:288},{x:208,y:288}],
+    [{x:368,y:416},{x:368,y:176},{x:500,y:176},{x:500,y:416}],
+    [{x:64,y:416},{x:744,y:416},{x:744,y:544},{x:64,y:544}],
+  ];
+  for (let i=0;i<c.walker;i++) npcs.push({type:'walker', key: (i%2) ? 'ch1':'ch2',
+    x:paths[i][0].x, y:paths[i][0].y, r:14, dir:0, wp:paths[i], wi:1, speed:70+i*11,
+    face:'down', flip:false, anim:0});
+  if (c.chat) npcs.push({type:'chat', x:560, y:400, r:52});
+  zones = c.meeting ? [
+    {x:448,y:192,w:192,h:128,name:'라운지'},
+    {x:480,y:416,w:192,h:128,name:'프린터 앞'},
+    {x:96, y:96, w:256,h:160,name:'창가'},
+  ] : [];
+
+  state = 'playing'; hideOverlay();
+  flash('📍 ' + st.why);
+}
+// 시선은 정해진 키앵글을 순서대로 훑는다 — 멈춤 → 회전 → 멈춤 → …
+// 배열이 길수록 변곡점이 많아져서 읽기 어려워진다 (플레이어를 절대 쫓지 않음)
+const smooth = k => k*k*(3-2*k);
+const GAZE = [
+  [-1, 1],                              // 좌우 왕복 — 변곡점 2
+  [-1, 1, -.3, 1],                      // 되돌아보기 한 번 — 4
+  [-1, 0, 1, 0, -1, .55],               // 3단 스캔 — 6
+  [-1, 1, -1, .4, -.45, 1, 0, -.75],    // 불규칙 — 8
+];
+function gazeConfig(w){
+  const idx = w <= 2 ? 0 : w <= 4 ? 1 : w <= 6 ? 2 : 3;
+  return {keys:GAZE[idx], idx,
+          hold: Math.max(.5,  1.45 - w*.08),   // 멈추는 시간이 점점 짧아진다
+          turn: Math.max(.42, 1.05 - w*.05)};
+}
+function gazeAt(t, keys, amp, hold, turn){
+  const n = keys.length, seg = hold + turn, period = n * seg;
+  const u = ((t % period) + period) % period;
+  const i = Math.floor(u / seg), local = u - i*seg;
+  const a = keys[i]*amp, b = keys[(i+1) % n]*amp;
+  return local < hold ? a : a + (b-a)*smooth((local-hold)/turn);
+}
+function boss(key,x,y,base,amp,g,offset){
+  const t0 = offset || 0;
+  return {type:'boss', key, x, y, r:14, fov:1.15, range:200,
+          base, amp, keys:g.keys, hold:g.hold, turn:g.turn, t:t0,
+          dir:base + gazeAt(t0, g.keys, amp, g.hold, g.turn),
+          face:'side', flip:true, anim:0};
+}
+
+/* ============================ 기하 ============================ */
+function raySeg(px,py,dx,dy,ax,ay,bx,by){
+  const sx=bx-ax, sy=by-ay, den=dx*sy-dy*sx;
+  if (Math.abs(den) < 1e-9) return Infinity;
+  const t = ((ax-px)*sy-(ay-py)*sx)/den, u = ((ax-px)*dy-(ay-py)*dx)/den;
+  return (t>=0 && u>=0 && u<=1) ? t : Infinity;
+}
+function castRay(px,py,ang,maxd){
+  const dx=Math.cos(ang), dy=Math.sin(ang); let best=maxd;
+  for (const w of WALLS){
+    if (!w.blocksVision) continue;
+    const x2=w.x+w.w, y2=w.y+w.h; let t;
+    t=raySeg(px,py,dx,dy,w.x,w.y,x2,w.y); if(t<best)best=t;
+    t=raySeg(px,py,dx,dy,x2,w.y,x2,y2);   if(t<best)best=t;
+    t=raySeg(px,py,dx,dy,x2,y2,w.x,y2);   if(t<best)best=t;
+    t=raySeg(px,py,dx,dy,w.x,y2,w.x,w.y); if(t<best)best=t;
+  }
+  return best;
+}
+function canSee(n,tx,ty){
+  const dx=tx-n.x, dy=ty-n.y, dist=Math.hypot(dx,dy);
+  if (dist > n.range) return 0;
+  const ang = Math.atan2(dy,dx);
+  const diff = Math.abs(((ang-n.dir+Math.PI*3) % (Math.PI*2)) - Math.PI);
+  if (diff > n.fov/2) return 0;
+  if (castRay(n.x,n.y,ang,dist) < dist-2) return 0;
+  return 1 - dist/n.range*.45;
+}
+function pushOut(p,w){
+  const cx=Math.max(w.x,Math.min(p.x,w.x+w.w)), cy=Math.max(w.y,Math.min(p.y,w.y+w.h));
+  const dx=p.x-cx, dy=p.y-cy, d2=dx*dx+dy*dy;
+  if (d2 < p.r*p.r){ const d=Math.sqrt(d2)||.0001; p.x+=dx/d*(p.r-d); p.y+=dy/d*(p.r-d); }
+}
+function collide(p){
+  for (const w of WALLS) pushOut(p,w);
+  if (phase !== 'open') pushOut(p, ELEV);
+  p.x = Math.max(p.r, Math.min(W-p.r, p.x));
+  p.y = Math.max(p.r, Math.min(H-p.r, p.y));
+}
+
+/* ============================ 타이핑 챌린지 ============================ */
+function startTyping(kind, text, limit, msgText){
+  typing.active = true; typing.kind = kind; typing.target = text;
+  typing.limit = limit; typing.left = limit; typing.elapsed = 0;
+  el.panel.className = kind;
+  el.panel.style.display = 'block';
+  el.tIcon.textContent = kind === 'slack' ? '💬' : '⌨️';
+  el.tTitle.textContent = kind === 'slack' ? '팀장' : 'zsh — ~/work/kurly';
+  el.tMsg.textContent = msgText || '';
+  el.tMsg.style.display = msgText ? 'block' : 'none';
+  el.tHint.innerHTML = (kind === 'slack'
+    ? '그대로 입력 — 빨리 칠수록 ⚡보너스, 늦으면 팀장이 온다'
+    : '그대로 입력 — 빨리 칠수록 ⚡보너스 (Esc — 나중에)')
+    + '<span class="enter">Enter 전송</span>';
+  el.tInput.value = '';
+  el.tInput.placeholder = text;
+  paintTarget('');
+  el.tBar.style.width = '100%';
+  el.tBar.parentElement.style.display = limit > 0 ? 'block' : 'none';
+  for (const k in keys) keys[k] = false;
+  setTimeout(() => el.tInput.focus(), 0);
+}
+function paintTarget(v){
+  const t = typing.target;
+  let ok = 0;
+  while (ok < v.length && ok < t.length && v[ok] === t[ok]) ok++;
+  const esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/ /g,'&nbsp;');
+  el.tTarget.innerHTML = '<b>'+esc(t.slice(0,ok))+'</b>'
+    + (t[ok] !== undefined ? '<u>'+esc(t[ok])+'</u>' : '')
+    + '<i>'+esc(t.slice(ok+1))+'</i>';
+  el.tInput.style.borderColor = v.length > ok ? '#ff5f6d' : '';
+}
+function endTyping(success, silent){
+  const kind = typing.kind, sec = typing.elapsed, len = typing.target.length;
+  typing.active = false; typing.kind = '';
+  el.panel.style.display = 'none';
+  el.tInput.blur();
+  if (silent) return;
+  if (!success && kind === 'term'){ typeCool = 1.4; flash('⌨️ 커밋 미룸 — 노트북은 아직 못 끈다'); }
+  if (success){
+    SFX.pick();
+    const bonus = typeBonus(kind, len, sec);
+    if (bonus > 0){ typeSum += bonus; typeCnt++; beep(1760,.09,'sine',.05); }
+    const tag = sec.toFixed(1) + '초' + (bonus > 0 ? '  ⚡+' + fmt(bonus) : '  (보너스 없음)');
+    if (kind === 'term'){ done.commit = true; flash('⌨️ 커밋 완료 — ' + tag); }
+    else flash('💬 답장 전송 — ' + tag);
+  }
+}
+el.tInput.addEventListener('input', () => {
+  if (!typing.active) return;
+  paintTarget(el.tInput.value); SFX.key();
+});
+function submitTyping(){
+  if (!typing.active) return;
+  if (el.tInput.value.trim() === typing.target){ endTyping(true); return; }
+  el.panel.classList.remove('shake');
+  void el.panel.offsetWidth;                       // 애니메이션 리셋
+  el.panel.classList.add('shake');
+  beep(210,.12,'square',.05);
+  flash('❌ 오타 — 문장이 정확히 같아야 전송돼요');
+}
+el.tInput.addEventListener('keydown', e => {
+  e.stopPropagation();
+  if (e.key === 'Enter'){ e.preventDefault(); submitTyping(); return; }
+  if (e.key === 'Escape' && typing.kind === 'term') endTyping(false);
+});
+el.tInput.addEventListener('blur', () => { if (typing.active) setTimeout(()=>el.tInput.focus(), 0); });
+
+/* ============================ 입력 ============================ */
+const keys = {};
+addEventListener('keydown', e => {
+  if (typing.active) return;
+  const k = e.key.toLowerCase();
+  if ([' ','arrowup','arrowdown','arrowleft','arrowright'].includes(k)) e.preventDefault();
+  keys[k] = true;
+  if (k === 'm'){ muted = !muted; flash(muted ? '🔇 음소거' : '🔊 소리 켜짐'); }
+  if (k === 'r' && state === 'playing') startWave(wave);
+  if ((k === ' ' || k === 'enter') && state !== 'playing' && state !== 'loading') advance();
+});
+addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
+// 창 포커스가 빠지면 keyup을 못 받아 키가 눌린 채로 박히는 것 방지
+const clearKeys = () => { for (const k in keys) keys[k] = false; };
+addEventListener('blur', clearKeys);
+document.addEventListener('visibilitychange', () => { if (document.hidden) clearKeys(); });
+function advance(){
+  if (state === 'clear') wave++;
+  else { wave = 1; skipped = false; score = 0; }
+  startWave(wave);
+}
+window.__adv = advance;
+window.__tp = (x,y) => { player.x = x; player.y = y; return [player.x, player.y]; };
+window.__clock = t => { timeLeft = t; return timeLeft; };
+window.__dbg = () => ({state, wave, phase,
+  player:{x:Math.round(player.x), y:Math.round(player.y), face:player.face, stun:+player.stun.toFixed(1)},
+  keys:Object.keys(keys).filter(k=>keys[k]),
+  npcs:npcs.map(n=>n.type+'@'+Math.round(n.x)+','+Math.round(n.y)),
+  gaze:npcs.filter(n=>n.type==='boss').map(n=>({pts:n.keys.length, hold:+n.hold.toFixed(2),
+       turn:+n.turn.toFixed(2), dir:+n.dir.toFixed(3)})),
+  typeSum, typeCnt, caught, score,
+  assets:{done:nDone, fail:nFail, total:nTotal}});
+
+/* ============================ 태스크 ============================ */
+function pending(){
+  const out = [];
+  for (const t of ORDER){
+    if (!tasks.includes(t) || done[t]) continue;
+    const T2 = TASKS[t];
+    const locked = !!(T2.after && tasks.includes(T2.after) && !done[T2.after]);
+    const key = (t === 'coffee' && carry) ? T2.to : T2.at;
+    out.push({t, T:T2, locked, pt:POINTS[key], locKey:key,
+              need:(t==='coffee' && carry) ? T2.hold2 : T2.hold});
+  }
+  return out;
+}
+const DOING = {commit:'커밋 작성 중', laptop:'노트북 끄는 중', coffee:'커피 드는 중',
+               bag:'가방 챙기는 중', toilet:'화장실 다녀오는 중'};
+function standingOn(){
+  for (const p of pending())
+    if (Math.hypot(player.x-p.pt.x, player.y-p.pt.y) < p.pt.r) return p;
+  return null;
+}
+function currentTarget(){
+  for (const p of pending()){
+    if (p.locked) continue;
+    if (Math.hypot(player.x-p.pt.x, player.y-p.pt.y) < p.pt.r) return p;
+  }
+  return null;
+}
+function complete(t){
+  if (t === 'coffee' && !carry){ carry = true; SFX.pick(); flash('☕ 커피 들었다 — 쓰레기통까지'); return; }
+  done[t] = true; SFX.pick();
+  flash(TASKS[t].icon + ' ' + TASKS[t].label + ' 완료');
+}
+
+/* ============================ 업데이트 ============================ */
+function update(dt){
+  if (state !== 'playing') return;
+  const cfg = waveConfig(wave);
+  if (typeCool > 0) typeCool -= dt;
+
+  if (typing.active){
+    player.moving = false;
+    typing.elapsed += dt;
+    const liveB = typeBonus(typing.kind, typing.target.length, typing.elapsed);
+    el.tTime.textContent = typing.elapsed.toFixed(1) + '초'
+      + (liveB > 0 ? ' · ⚡+' + fmt(liveB) : '');
+    if (typing.limit > 0){
+      typing.left -= dt;
+      el.tBar.style.width = Math.max(0, typing.left/typing.limit*100) + '%';
+      if (typing.left <= 0){
+        endTyping(false, true);
+        grab('답장 안 하니까 직접 왔다', 3);
+      }
+    }
+  } else {
+    player.sneaking = !!keys['shift'];
+    let vx=0, vy=0;
+    if (player.stun <= 0){
+      if (keys['a']||keys['arrowleft'])  vx--;
+      if (keys['d']||keys['arrowright']) vx++;
+      if (keys['w']||keys['arrowup'])    vy--;
+      if (keys['s']||keys['arrowdown'])  vy++;
+    } else {
+      player.stun -= dt;
+      if (player.stun <= 0) player.bubble = '';
+    }
+    const len = Math.hypot(vx,vy);
+    player.moving = len > 0;
+    if (len){
+      let sp = player.sneaking ? player.sneak : player.speed;
+      if (carry) sp *= .88;
+      player.x += vx/len*sp*dt; player.y += vy/len*sp*dt;
+      collide(player);
+      if (vx !== 0){ player.face = 'side'; player.flip = vx < 0; }
+      else { player.face = vy > 0 ? 'down' : 'up'; player.flip = false; }
+      player.anim += dt * (player.sneaking ? .6 : 1);
+    }
+
+    const tgt = currentTarget();
+    if (tgt && !player.moving && player.stun <= 0){
+      if (tgt.T.kind === 'type'){
+        if (typeCool <= 0) startTyping('term', COMMITS[(Math.random()*COMMITS.length)|0], 0);
+      } else {
+        const key = tgt.t + (carry ? '-b' : '-a');
+        if (holdKey !== key){ holdKey = key; holdT = 0; }
+        holdT += dt;
+        if (holdT >= tgt.need){ complete(tgt.t); holdKey = null; holdT = 0; }
+      }
+    } else { holdKey = null; holdT = 0; }
+  }
+
+  for (const n of npcs){
+    if (n.type === 'boss'){
+      n.t += dt;
+      n.dir = n.base + gazeAt(n.t, n.keys, n.amp, n.hold, n.turn);  // 플레이어를 절대 쫓지 않음
+      const f = faceFromAngle(n.dir); n.face = f[0]; n.flip = f[1];
+    } else if (n.type === 'exec' || n.type === 'walker'){
+      const t = n.wp[n.wi], dx = t.x-n.x, dy = t.y-n.y, d = Math.hypot(dx,dy);
+      if (d < 4) n.wi = (n.wi+1) % n.wp.length;
+      else {
+        n.x += dx/d*n.speed*dt; n.y += dy/d*n.speed*dt; n.dir = Math.atan2(dy,dx);
+        n.anim += dt;
+        const f = faceFromAngle(n.dir); n.face = f[0]; n.flip = f[1];
+      }
+      if (n.type === 'walker' && player.stun <= 0 && !typing.active
+          && Math.hypot(player.x-n.x, player.y-n.y) < n.r+player.r+4)
+        grab('스몰토크 발생', 3);
+    } else if (n.type === 'chat'){
+      if (player.stun <= 0 && !typing.active && Math.hypot(player.x-n.x, player.y-n.y) < n.r)
+        grab('"어 김대리 이거 봤어요?"', 3);
+    }
+  }
+
+  let seen = 0;
+  if (player.stun <= 0){
+    for (const n of npcs){
+      if (n.type !== 'boss' && n.type !== 'exec') continue;
+      seen = Math.max(seen, canSee(n, player.x, player.y));
+    }
+  }
+  alertMeter += seen > 0 ? dt*(.9+seen)*(player.sneaking?.55:1) : -dt*.85;
+  alertMeter = Math.max(0, Math.min(1, alertMeter));
+  if (alertMeter >= 1) grab('"김대리~ 잠깐만!"', 3);
+
+  if (cfg.slack && !typing.active && phase === 'run' && player.stun <= 0){
+    slackT -= dt;
+    if (slackT <= 0 && timeLeft > 8){
+      const s = SLACKS[(Math.random()*SLACKS.length)|0];
+      slackT = 8 + Math.random()*5;
+      startTyping('slack', s[1], cfg.slackLimit, s[0]);
+      SFX.notif();
+    }
+  }
+
+  if (cfg.meeting){
+    if (meeting){
+      meeting.t -= dt;
+      if (meeting.t <= 0){
+        const z = meeting.zone;
+        if (player.x>z.x && player.x<z.x+z.w && player.y>z.y && player.y<z.y+z.h)
+          grab('📣 회의 끌려감', 3.5);
+        meeting = null; meetT = 6 + Math.random()*3;
+      }
+    } else { meetT -= dt; if (meetT <= 0){ meeting = {zone:zones[(Math.random()*zones.length)|0], t:1.6}; SFX.notif(); } }
+  }
+
+  // 엘베 — 마감 전에 문 앞에 가면 열린다. 일찍 갈수록 점수.
+  const atDoor = player.x > 812
+              && player.y > ELEV.y - 26 && player.y < ELEV.y + ELEV.h + 26;
+  if (phase === 'run'){
+    timeLeft -= dt;
+    if (timeLeft <= 0){ phase = 'closed'; lose(); }
+    else if (atDoor && player.stun <= 0 && !typing.active){
+      const left = tasks.filter(t => !done[t]);
+      if (!left.length){ phase = 'open'; SFX.ding(); flash('🛗 문이 열린다 — 탑승!'); }
+      else if (msgT <= 0){
+        flash('⚠️ ' + TASKS[left[0]].label + ' 안 했잖아요!'); SFX.caught();
+      }
+    }
+  } else if (phase === 'open'){
+    elevator.open = Math.min(1, elevator.open + dt*3.2);
+    if (elevator.open >= 1) win();
+  }
+  if (msgT > 0) msgT -= dt;
+}
+function grab(text, sec){
+  if (player.stun > 0) return;
+  if (typing.active) endTyping(false, true);
+  player.stun = sec; player.bubble = text; alertMeter = 0; caught++;
+  SFX.caught(); flash('😱 ' + text + ' — ' + sec + '초 정지');
+}
+function flash(t){ msg = t; msgT = 1.8; }
+
+function win(){
+  state = 'clear'; SFX.win(); endTyping(null, true);
+  const br = scoreBreak();
+  score += br.total;
+  if (!skipped){
+    if (wave > bestLv){ bestLv = wave; localStorage.setItem('lot.bestLv', bestLv); }
+    if (score > bestScore){ bestScore = score; localStorage.setItem('lot.bestScore', score); }
+  }
+  const n = waveConfig(wave+1);
+  const row = (l,v) => '<div><span>'+l+'</span><b>+'+fmt(v)+'</b></div>';
+  showOverlay('<div class="big">🎉</div><h2>LV.'+wave+' 클리어!</h2>'
+    + '<p>'+wave+'일차 칼퇴 성공 — 마감 '+Math.max(0,timeLeft).toFixed(1)+'초 전에 탑승</p>'
+    + '<div class="brk">'
+    +   row('클리어 보너스 (LV.'+wave+')', br.base)
+    +   row('남은 시간 '+Math.max(0,timeLeft).toFixed(1)+'초', br.timeB)
+    +   row('할 일 '+tasks.length+'개', br.taskB)
+    +   (br.typeB ? row('⚡ 타이핑 속도 보너스 ('+typeCnt+'회)', br.typeB) : '')
+    +   (br.cleanB ? row('🤫 무적발 보너스 (한 번도 안 들킴)', br.cleanB)
+                   : '<div style="opacity:.45"><span>무적발 보너스 ('+caught+'번 들킴)</span><b>+0</b></div>')
+    +   '<div class="sum"><span>누적 총점</span><b>'+fmt(score)+'</b></div>'
+    + '</div>'
+    + (NEW_AT[wave+1] ? '<p class="newthing">다음 레벨의 변수 — '+NEW_AT[wave+1]+'</p>' : '')
+    + '<div class="tasklist">'+n.tasks.map(t=>'<span>'+TASKS[t].icon+' '+TASKS[t].label+'</span>').join('')+'</div>'
+    + '<p>LV.'+(wave+1)+' — 마감 <b style="color:var(--warn)">'+n.deadline+'초</b>'
+    +   ' · 팀장 시선 <b style="color:var(--warn)">'+GAZE_NAME[n.gaze.idx]+'</b>(변곡점 '+n.gaze.keys.length+')'
+    +   ' · 순회 동료 <b style="color:var(--warn)">'+n.walker+'명</b>'
+    +   (n.bosses>1 ? ' · 팀장 <b style="color:var(--warn)">2명</b>' : '') + '</p>'
+    + '<button class="btn" onclick="window.__adv()">LV.'+(wave+1)+' 시작 (Space)</button>');
+}
+function lose(){
+  state = 'gameover'; SFX.fail(); endTyping(null, true);
+  const cleared = wave - 1;
+  if (!skipped){
+    if (cleared > bestLv){ bestLv = cleared; localStorage.setItem('lot.bestLv', bestLv); }
+    if (score > bestScore){ bestScore = score; localStorage.setItem('lot.bestScore', score); }
+  }
+  const left = tasks.filter(t => !done[t]);
+  showOverlay('<div class="big">🌙</div><h2>야근 확정</h2>'
+    + '<p>퇴근 마감 시간이 지났다. 오늘은 못 나간다.</p>'
+    + (left.length ? '<p>못 끝낸 일: '+left.map(t=>TASKS[t].icon+' '+TASKS[t].label).join(' · ')+'</p>'
+                   : '<p>준비는 다 했는데... 엘베 앞까지 못 갔다.</p>')
+    + '<div class="brk">'
+    +   '<div><span>도달 레벨</span><b>LV.'+wave+'</b></div>'
+    +   '<div><span>클리어한 레벨</span><b>'+cleared+'개</b></div>'
+    +   '<div class="sum"><span>최종 점수</span><b>'+fmt(score)+'</b></div>'
+    + '</div>'
+    + '<p style="font-size:12.5px">최고 기록 — LV.'+bestLv+' · '+fmt(bestScore)+'점</p>'
+    + '<button class="btn" onclick="window.__adv()">다시 출근 (Space)</button>');
+}
+
+/* ============================ 렌더 ============================ */
+function drawFloor(){
+  for (let y=0; y<H; y+=T){
+    for (let x=0; x<W; x+=T){
+      const hall = x >= 800;
+      const wc = hall && y < 160;
+      ctx.fillStyle = wc   ? (((x+y)/T)%2 ? '#6d7690' : '#69728b')
+                    : hall ? (((x+y)/T)%2 ? '#5f6880' : '#5b647c')
+                           : (((x+y)/T)%2 ? '#4a5266' : '#465062');
+      ctx.fillRect(x,y,T,T);
+    }
+  }
+}
+function drawWall(w){
+  ctx.fillStyle = '#242938'; ctx.fillRect(w.x, w.y, w.w, w.h);
+  ctx.fillStyle = '#333b52'; ctx.fillRect(w.x, w.y, w.w, Math.min(6, w.h));
+  ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.fillRect(w.x, w.y+w.h-3, w.w, 3);
+}
+function render(){
+  ctx.imageSmoothingEnabled = false;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+
+  if (state === 'loading'){
+    ctx.fillStyle = '#20242e'; ctx.fillRect(0,0,W,H);
+    ctx.fillStyle = '#9aa3b4'; ctx.font = '14px system-ui';
+    ctx.fillText('애셋 로딩 중… ' + nDone + '/' + nTotal, W/2, H/2);
+    return;
+  }
+
+  drawFloor();
+
+  if (meeting){
+    const z = meeting.zone, a = .15 + Math.abs(Math.sin(perf*9))*.18;
+    ctx.fillStyle = 'rgba(255,95,109,'+a+')'; ctx.fillRect(z.x,z.y,z.w,z.h);
+    ctx.strokeStyle = '#ff5f6d'; ctx.setLineDash([6,5]); ctx.strokeRect(z.x,z.y,z.w,z.h); ctx.setLineDash([]);
+    ctx.fillStyle = '#ffd7da'; ctx.font = 'bold 13px system-ui';
+    ctx.fillText('📣 ' + z.name + ' 회의 소집!', z.x+z.w/2, z.y+z.h/2);
+  }
+
+  // 시야
+  for (const n of npcs){
+    if (n.type !== 'boss' && n.type !== 'exec') continue;
+    const N = 34, half = n.fov/2;
+    ctx.beginPath(); ctx.moveTo(n.x,n.y);
+    for (let i=0;i<=N;i++){
+      const a = n.dir - half + n.fov*i/N, d = castRay(n.x,n.y,a,n.range);
+      ctx.lineTo(n.x+Math.cos(a)*d, n.y+Math.sin(a)*d);
+    }
+    ctx.closePath();
+    const g = ctx.createRadialGradient(n.x,n.y,8,n.x,n.y,n.range);
+    g.addColorStop(0, alertMeter>.15 ? 'rgba(255,95,109,.36)' : 'rgba(255,181,77,.26)');
+    g.addColorStop(1, 'rgba(255,181,77,0)');
+    ctx.fillStyle = g; ctx.fill();
+  }
+  for (const n of npcs) if (n.type === 'chat'){
+    ctx.beginPath(); ctx.arc(n.x,n.y,n.r,0,7);
+    ctx.fillStyle='rgba(94,225,160,.10)'; ctx.fill();
+    ctx.strokeStyle='rgba(94,225,160,.35)'; ctx.setLineDash([4,4]); ctx.stroke(); ctx.setLineDash([]);
+  }
+
+  // 벽 / 가구 / 장식
+  for (const w of WALLS){
+    if (w.kind === 'glass'){ ctx.fillStyle='rgba(160,205,255,.26)'; ctx.fillRect(w.x,w.y,w.w,w.h); continue; }
+    if (w.sprite) spr(w.sprite, w.x, w.y, w.w, w.h);
+    else drawWall(w);
+  }
+  for (const d of DECOR) spr(d.sprite, d.x, d.y, d.w, d.h);
+
+  // 남은 태스크 — 가까이 가야 표시된다
+  for (const p of pending()){
+    const s = p.pt;
+    const dist = Math.hypot(player.x-s.x, player.y-s.y);
+    const reveal = s.r * 3.4;
+    if (dist > reveal) continue;
+    const a = .42 + .58 * Math.min(1, (reveal-dist) / (reveal-s.r));
+    const inside = dist <= s.r;
+    if (inside){                                   // 발밑 은은한 빛
+      const g = ctx.createRadialGradient(s.x,s.y,2,s.x,s.y,s.r);
+      g.addColorStop(0, p.locked ? 'rgba(170,180,200,.20)' : 'rgba(94,225,160,.30)');
+      g.addColorStop(1, 'rgba(94,225,160,0)');
+      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(s.x,s.y,s.r,0,7); ctx.fill();
+    }
+    ctx.globalAlpha = a;
+    const by = s.y - 36 + Math.sin(perf*3 + s.x*.05)*3;
+    ctx.fillStyle = inside ? 'rgba(20,44,34,.95)' : 'rgba(14,17,24,.85)';
+    roundRect(s.x-15, by-15, 30, 30, 8); ctx.fill();
+    ctx.strokeStyle = p.locked ? 'rgba(170,180,200,.5)'
+                    : inside ? 'rgba(94,225,160,.95)' : 'rgba(94,225,160,.45)';
+    ctx.lineWidth = 2; ctx.stroke(); ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(s.x-5, by+14); ctx.lineTo(s.x+5, by+14); ctx.lineTo(s.x, by+21);
+    ctx.closePath(); ctx.fillStyle = inside ? 'rgba(20,44,34,.95)' : 'rgba(14,17,24,.85)'; ctx.fill();
+    if (p.t === 'coffee' && !carry) spr('mug', s.x-13, by-13, 26, 26);
+    else { ctx.font='15px "Apple Color Emoji",sans-serif';
+           ctx.fillText(p.locked ? '🔒' : (p.t==='coffee' ? '🗑️' : p.T.icon), s.x, by); }
+    ctx.globalAlpha = 1;
+  }
+
+  drawElevator();
+
+  // 인물 (y 순으로 정렬해 겹침 자연스럽게)
+  const actors = npcs.filter(n => n.type !== 'chat').map(n => ({n, y:n.y}));
+  actors.push({p:true, y:player.y});
+  actors.sort((a,b) => a.y - b.y);
+  for (const a of actors){
+    if (a.p){
+      drawChar('ch1', player.x, player.y, player.face,
+               player.moving && player.stun<=0 && !typing.active, player.anim, player.flip);
+      if (carry) spr('mug', player.x + (player.flip ? -26 : 6), player.y - 34, 26, 26);
+      if (player.sneaking && player.stun<=0 && !typing.active){
+        ctx.beginPath(); ctx.arc(player.x,player.y-4,player.r+8,0,7);
+        ctx.strokeStyle='rgba(94,225,160,.5)'; ctx.setLineDash([3,4]); ctx.stroke(); ctx.setLineDash([]);
+      }
+      if (player.bubble) bubble(player.x, player.y-72, player.bubble, '#ff5f6d');
+    } else {
+      const n = a.n;
+      drawChar(n.key, n.x, n.y, n.face, n.type !== 'boss', n.anim, n.flip);
+      if (n.type === 'boss'){ ctx.font='13px system-ui'; ctx.fillStyle='#ffd9a0'; ctx.fillText('👔', n.x, n.y-62); }
+      if (n.type === 'exec'){ ctx.font='13px system-ui'; ctx.fillStyle='#ffd9a0'; ctx.fillText('🕴️', n.x, n.y-62); }
+    }
+  }
+  // 잡담 무리
+  for (const n of npcs) if (n.type === 'chat'){
+    drawChar('ch2', n.x-20, n.y+6, 'side', false, perf*.3, false);
+    drawChar('ch1', n.x+20, n.y+2, 'side', false, perf*.4, true);
+    drawChar('ch3', n.x,    n.y+20, 'up',  false, perf*.2, false);
+  }
+
+  if (msgT > 0){
+    ctx.globalAlpha = Math.min(1, msgT*1.6);
+    ctx.font = 'bold 15px system-ui';
+    const tw = ctx.measureText(msg).width;
+    ctx.fillStyle='rgba(12,14,20,.88)'; roundRect(W/2-tw/2-14,26,tw+28,32,8); ctx.fill();
+    ctx.fillStyle='#fff'; ctx.fillText(msg, W/2, 43);
+    ctx.globalAlpha = 1;
+  }
+  if (nFail > 0){
+    ctx.font='12px system-ui'; ctx.fillStyle='#ff5f6d'; ctx.textAlign='left';
+    ctx.fillText('⚠️ 이미지 '+nFail+'개 로드 실패 — 폴더에서 python3 -m http.server 로 열어보세요', 12, H-12);
+    ctx.textAlign='center';
+  }
+}
+function bubble(x,y,text,color){
+  ctx.font='bold 12px system-ui';
+  const tw = ctx.measureText(text).width;
+  ctx.fillStyle='rgba(12,14,20,.9)'; roundRect(x-tw/2-9,y-13,tw+18,24,7); ctx.fill();
+  ctx.fillStyle=color; ctx.fillText(text,x,y);
+}
+function roundRect(x,y,w,h,r){
+  ctx.beginPath(); ctx.moveTo(x+r,y);
+  ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath();
+}
+function drawElevator(){
+  const x=ELEV.x, y=ELEV.y, w=ELEV.w, h=ELEV.h;
+  ctx.fillStyle='#0b0e14'; ctx.fillRect(x,y,w,h);
+  ctx.fillStyle='#161d2b'; ctx.fillRect(x+4,y+4,w-8,h-8);
+  const o = elevator ? elevator.open : 0, half = w/2, slide = half*o;
+  for (const dd of [[0,half-slide],[half+slide,half-slide]]){
+    if (dd[1] <= 0) continue;
+    ctx.fillStyle = phase==='open' ? '#8b96b2' : '#69728c';
+    ctx.fillRect(x+dd[0], y, dd[1], h);
+    ctx.fillStyle='rgba(255,255,255,.16)'; ctx.fillRect(x+dd[0], y, dd[1], 3);
+    ctx.fillStyle='rgba(0,0,0,.2)';
+    for (let i2=13;i2<h;i2+=14) ctx.fillRect(x+dd[0], y+i2, dd[1], 1);
+  }
+  ctx.strokeStyle='#39415a'; ctx.lineWidth=4; ctx.strokeRect(x-2,y-2,w+4,h+4); ctx.lineWidth=1;
+  ctx.fillStyle='#161d2b'; roundRect(x+w/2-23, y-27, 46, 19, 4); ctx.fill();
+  const ready = state === 'playing' && tasks.length && tasks.every(t => done[t]);
+  ctx.font='bold 11px system-ui';
+  ctx.fillStyle = phase==='open' ? '#5ee1a0' : ready ? '#5ee1a0' : '#ffb54d';
+  ctx.fillText(phase==='open' ? 'OPEN' : ready ? '● 대기' : '▼ 15F', x+w/2, y-17);
+  ctx.fillStyle='#2a3145'; ctx.fillRect(x-13, y+h/2-11, 9, 22);
+  ctx.fillStyle = phase==='open' ? '#5ee1a0' : '#7a8397';
+  ctx.fillRect(x-11, y+h/2-7, 5, 5);
+}
+
+/* ============================ HUD ============================ */
+function syncHUD(){
+  el.wave.innerHTML = 'LV.' + wave + ' <span style="color:#69728a;font-weight:400">· '+wave+'일차</span>';
+  el.best.textContent = bestLv ? '🏆 최고 LV.' + bestLv + ' · ' + fmt(bestScore) + '점' : '';
+  el.scoreNow.textContent = fmt(score);
+  el.scoreGain.textContent = (state === 'playing' && phase === 'run')
+    ? '+' + fmt(scoreBreak().total) : '—';
+  el.typeRow.style.display = typeSum > 0 ? 'block' : 'none';
+  el.typeSumEl.textContent = '+' + fmt(typeSum) + ' (' + typeCnt + '회)';
+
+  const here = standingOn();
+
+  // ── 사이드 체크리스트 ──
+  el.todo.innerHTML = ORDER.filter(t => tasks.includes(t)).map(t => {
+    const T2 = TASKS[t], d = done[t];
+    const locked = !!(T2.after && tasks.includes(T2.after) && !done[T2.after]);
+    const carrying = (t === 'coffee' && carry);
+    const where = d ? '완료' : locked ? 'git commit 먼저' : LOC[carrying ? T2.to : T2.at];
+    const label = carrying ? '커피 버리기' : T2.label;
+    const cls = d ? 'done' : locked ? 'lock' : (here && here.t === t) ? 'active' : '';
+    return '<li class="'+cls+'"><span class="mark">'+(d?'✅':locked?'🔒':'⬜')+'</span>'
+         + '<span class="ico">'+T2.icon+'</span>'
+         + '<span class="txt">'+label+'<em>'+where+'</em></span></li>';
+  }).join('');
+
+  // ── 진행 상태 ──
+  let label = '대기 중', pct = 0, idle = true;
+  if (typing.active){
+    label = typing.kind === 'term' ? '⌨️ 커밋 메시지 입력 중' : '💬 슬랙 답장 입력 중';
+    idle = false;
+    pct = typing.limit > 0 ? Math.max(0, typing.left/typing.limit)*100 : 100;
+  } else if (player.stun > 0){
+    label = '😱 붙잡힘 — ' + player.stun.toFixed(1) + '초';
+    idle = false;
+  } else if (holdKey){
+    const p = pending().filter(q => holdKey.indexOf(q.t) === 0)[0];
+    if (p){
+      label = p.T.icon + ' ' + ((p.t === 'coffee' && carry) ? '커피 버리는 중' : DOING[p.t]);
+      idle = false; pct = Math.min(1, holdT / p.need) * 100;
+    }
+  } else if (here){
+    label = here.locked ? '🔒 git commit 먼저' : '👉 가만히 서 있으면 시작';
+    idle = false;
+  }
+  el.actLabel.textContent = label;
+  el.actLabel.className = 'actlabel' + (idle ? ' idle' : '');
+  el.actBar.style.width = pct + '%';
+
+  const b = [];
+  if (player.sneaking && !typing.active && player.stun <= 0) b.push(['on','🤫 살금살금']);
+  if (carry) b.push(['warn','☕ 커피 들고 있음']);
+  if (player.stun > 0) b.push(['bad','😱 정지']);
+  if (phase === 'open') b.push(['on','🛗 문 열림']);
+  if (!b.length) b.push(['','평상시']);
+  el.badges.innerHTML = b.map(x => '<span class="badge '+x[0]+'">'+x[1]+'</span>').join('');
+
+  // ── 들킴 게이지 ──
+  const ap = Math.round(alertMeter*100);
+  el.alert.style.width = ap + '%';
+  el.alertBar2.style.width = ap + '%';
+  el.alertPct.textContent = ap + '%';
+
+  // ── 상단 ──
+  const leftN = tasks.filter(t => !done[t]).length;
+  el.hudmid.innerHTML = leftN
+    ? '남은 할 일 ' + leftN + '개'
+    : '<b style="color:var(--accent)">✅ 준비 완료 — 엘베 앞으로 가면 문이 열린다</b>';
+  if (phase === 'run'){
+    el.timer.textContent = '⏰ 퇴근 마감까지 ' + Math.max(0,timeLeft).toFixed(1) + '초';
+    el.timer.className = timeLeft < 8 ? 'urgent' : '';
+  } else if (phase === 'open'){
+    el.timer.textContent = '🛗 탑승!'; el.timer.className = 'open';
+  } else { el.timer.textContent = '⏰ 마감'; el.timer.className = 'urgent'; }
+}
+
+function showOverlay(html){ el.card.innerHTML = html; el.overlay.style.display = 'flex'; }
+function hideOverlay(){ el.overlay.style.display = 'none'; }
+
+function title(){
+  state = 'title';
+  buildMap(); npcs = []; carry = false;
+  const c = waveConfig(1);
+  tasks = c.tasks.slice(); done = {}; tasks.forEach(t=>done[t]=false);
+  phase = 'run'; timeLeft = c.deadline; alertMeter = 0; elevator = {open:0}; score = 0;
+  showOverlay('<div class="big">🚌</div><h2>퇴근 스쿨버스</h2>'
+    + '<p style="font-size:15px;color:var(--warn)">엘리베이터 도착 전까지 칼퇴해라!</p>'
+    + '<p>18시, 15층. 팀장 시야를 피해 퇴근 준비를 끝내고 엘베 앞까지 가라.</p>'
+    + '<div class="keys">'
+    + '<span class="key"><b>WASD</b> / 방향키 — 이동</span>'
+    + '<span class="key"><b>Shift</b> — 살금살금 (조용·잘 안 들킴)</span>'
+    + '<span class="key">할 일 지점에서 <b>가만히</b> — 처리 시작</span>'
+    + '<span class="key">타이핑 후 <b>Enter</b> — 전송</span></div>'
+    + '<p style="font-size:12.5px">⏰ <b style="color:var(--warn)">퇴근 마감 시간</b> 안에 할 일을 끝내고 엘베 앞에 서면 문이 열린다.<br>'
+    + '<b style="color:var(--accent)">남은 시간이 많을수록 점수가 높다</b> — 레벨을 넘길수록 점수는 계속 쌓인다.<br>'
+    + '⚡ 슬랙 답장과 git 커밋을 <b style="color:var(--accent)">빨리 타이핑하면 추가 점수</b>.</p>'
+    + '<p style="font-size:12.5px">👔 팀장의 시선은 <b style="color:var(--warn)">정해진 패턴</b>으로만 움직인다. '
+    + '리듬을 읽고 화분·책장 뒤로 붙어서 지나가라.</p>'
+    + '<p style="font-size:12.5px">레벨이 오를 때마다 <b style="color:var(--accent)">할 일이 하나씩 늘고</b> 마감 시간은 짧아진다.<br>'
+    + '1일차 💻노트북·🎒가방 → 2일차 ⌨️커밋 → 3일차 ☕커피 → 4일차 🚻화장실</p>'
+    + '<button class="btn" onclick="window.__adv()">LV.1 시작 (Space)</button>');
+}
+
+/* ============================ 루프 ============================ */
+let last = performance.now(), perf = 0;
+function loop(now){
+  const dt = Math.min(.05, (now-last)/1000);
+  last = now; perf += dt;
+  if (state === 'loading'){
+    if (assetsReady) boot();                 // 예비 경로
+  } else { update(dt); syncHUD(); }
+  render();
+  requestAnimationFrame(loop);
+}
+const qsDay = parseInt(new URLSearchParams(location.search).get('day'), 10);
+function boot(){
+  if (qsDay >= 1 && qsDay <= 99){ wave = qsDay; skipped = qsDay > 1; startWave(wave); }
+  else title();
+}
+state = 'loading';
+buildMap();
+requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
