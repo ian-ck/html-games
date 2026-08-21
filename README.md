@@ -65,6 +65,27 @@ python3 -m http.server 8000
 # http://localhost:8000/leave-on-time/
 ```
 
+## 순위표
+
+랜덤 닉네임(`야근인턴#e1e` 형태)이 첫 플레이 때 자동 배정되고 브라우저에 저장된다. 헤더의 🎲로 다시 뽑을 수 있다.
+개인정보는 저장하지 않는다 — 닉네임은 클라이언트가 만든 랜덤 문자열이고, 서버는 레이트리밋용 IP 해시만 남긴다.
+
+백엔드는 **Cloudflare Workers + D1** (`leaderboard-worker/`). 게임 페이지에는 API 키가 들어가지 않고,
+Worker 주소로만 요청한다. 설정과 보안 검증 내역은 [`leaderboard-worker/DEPLOY.md`](leaderboard-worker/DEPLOY.md) 참고.
+
+서버가 꺼져 있거나 오프라인이면 자동으로 이 브라우저에 저장된 기록으로 대체되므로, 순위표 때문에 게임이 멈추지 않는다.
+
+## 시드
+
+맵 배치(내 자리 / 오류 발생 자리 / 커피 자리)는 **시드 기반 난수**로 결정된다.
+같은 시드면 같은 배치가 재현되므로, 데일리 챌린지나 멀티플레이에서 "모두 같은 판"을 만들 수 있다.
+
+```
+?seed=kurly     같은 배치 재현
+```
+
+거품·효과음 같은 연출은 시드를 쓰지 않는다 (매번 달라야 자연스러움).
+
 ## 애셋 크레딧
 
 - 가구 — [Free Furniture Office Equipment Set](https://stcrbcn.itch.io/furniture-office-set) by **Antea** · [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)

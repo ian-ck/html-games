@@ -1,3 +1,13 @@
 .DS_Store
 **/.DS_Store
 Thumbs.db
+
+# wrangler 로컬 캐시 — 계정 ID/계정명이 들어있어 커밋하면 안 된다
+.wrangler/
+**/.wrangler/
+
+# 로컬 시크릿 (wrangler dev 용)
+.dev.vars
+.dev.vars.*
+
+node_modules/

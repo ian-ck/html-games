@@ -1,0 +1,14 @@
+name = "toegeun-leaderboard"
+main = "src/index.js"
+compatibility_date = "2026-08-01"
+
+# 순위표 DB — 아래 database_id 는 `wrangler d1 create` 결과로 채워진다
+[[d1_databases]]
+binding = "DB"
+database_name = "toegeun"
+database_id = "f2f4993c-f8f9-4bea-a78c-3a55c7af3b51"
+
+[vars]
+# 이 오리진에서 온 요청만 허용한다 (CORS)
+# 쉼표로 여러 오리진 허용 — 배포용 + 로컬 테스트용
+ALLOW_ORIGIN = "https://ian-ck.github.io,http://localhost:8765"

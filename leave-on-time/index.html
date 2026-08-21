@@ -60,7 +60,22 @@
   header{display:flex;align-items:baseline;gap:12px;margin-bottom:10px}
   header h1{font-size:18px;margin:0;letter-spacing:-.4px}
   header .sub{font-size:12px;color:var(--dim)}
-  header .best{margin-left:auto;font-size:12px;color:var(--warn)}
+  header .nick{margin-left:auto;font-size:12px;color:var(--dim);display:flex;align-items:center;gap:6px}
+  header .nick b{color:var(--ink);font-weight:700}
+  header .nick button{background:#202634;border:1px solid var(--line);color:var(--dim);
+    border-radius:6px;padding:2px 7px;font-size:11px;cursor:pointer;font-family:inherit}
+  header .nick button:hover{color:var(--ink);border-color:var(--accent)}
+  header .best{font-size:12px;color:var(--warn)}
+
+  .lbh{margin:18px 0 8px;font-size:11px;letter-spacing:.08em;color:#7b8497;font-weight:800;text-transform:uppercase}
+  table.lb{width:100%;max-width:400px;margin:0 auto;border-collapse:collapse;font-size:13px}
+  table.lb td{padding:5px 8px;border-bottom:1px solid rgba(255,255,255,.06);color:var(--dim)}
+  table.lb td.rk{width:28px;text-align:right;color:#69728a;font-variant-numeric:tabular-nums}
+  table.lb td.lv{width:56px;text-align:right;color:#8794ab}
+  table.lb td.sc{width:76px;text-align:right;color:var(--ink);font-variant-numeric:tabular-nums;font-weight:700}
+  table.lb tr.me td{color:var(--accent)}
+  table.lb tr.me td.sc{color:var(--accent)}
+  .lbnote{font-size:12px;color:#69728a;margin:8px 0 0}
 
   #hud{
     display:grid;grid-template-columns:auto 1fr auto;gap:14px;align-items:center;
@@ -79,10 +94,11 @@
   #alertfill{height:100%;width:0;background:linear-gradient(90deg,#ffb54d,#ff5f6d);transition:width .06s linear}
 
   .overlay{
-    position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
-    background:rgba(10,12,16,.87);backdrop-filter:blur(2px);line-height:1.6;
+    position:absolute;inset:0;display:flex;align-items:flex-start;justify-content:center;
+    background:rgba(10,12,16,.9);backdrop-filter:blur(2px);line-height:1.6;
+    overflow-y:auto;overscroll-behavior:contain;
   }
-  .card{width:680px;max-width:92%;text-align:center;padding:8px}
+  .card{width:680px;max-width:92%;text-align:center;padding:20px 8px;margin:auto}
   .card h2{margin:0 0 6px;font-size:26px;letter-spacing:-.6px}
   .card p{margin:6px 0;color:var(--dim);font-size:14px}
   .keys{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin:14px 0}
@@ -176,6 +192,7 @@
   <header>
     <h1>🚌 퇴근 스쿨버스</h1>
     <span class="sub">엘리베이터 도착 전까지 칼퇴해라!</span>
+    <span class="nick" id="nick"></span>
     <span class="best" id="best"></span>
   </header>
 
@@ -261,7 +278,7 @@ const el = {
   actBar:document.getElementById('actBar'), badges:document.getElementById('badges'),
   alertBar2:document.getElementById('alertBar2'), alertPct:document.getElementById('alertPct'),
   overlay:document.getElementById('overlay'), card:document.getElementById('card'),
-  best:document.getElementById('best'),
+  best:document.getElementById('best'), nick:document.getElementById('nick'),
   panel:document.getElementById('typing'), tIcon:document.getElementById('tIcon'),
   tTitle:document.getElementById('tTitle'), tMsg:document.getElementById('tMsg'),
   tTarget:document.getElementById('tTarget'), tInput:document.getElementById('tInput'),
@@ -332,6 +349,98 @@ function faceFromAngle(a){
   return [s > 0 ? 'down' : 'up', false];
 }
 
+/* ============================ 닉네임 & 순위표 ============================ */
+const NICK_A = ['칼퇴','야근','정시','광속','유령','전설','무적','심야','새벽','반차',
+                '연차','재택','월요','금요','점심','정각'];
+const NICK_B = ['요정','장인','고수','달인','인턴','사원','대리','주임','과장','차장',
+                '신입','베테랑','수호자','전문가','기계','귀신'];
+const esc = t => String(t).replace(/[&<>"']/g, c =>
+  ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function makeNick(){
+  const p1 = NICK_A[(Math.random()*NICK_A.length)|0];
+  const p2 = NICK_B[(Math.random()*NICK_B.length)|0];
+  const id = (((Math.random()*4096)|0) + 4096).toString(16).slice(1);
+  return p1 + p2 + '#' + id;
+}
+let nick = localStorage.getItem('lot.nick') || '';
+if (!nick){ nick = makeNick(); localStorage.setItem('lot.nick', nick); }
+window.__reroll = () => {
+  nick = makeNick(); localStorage.setItem('lot.nick', nick);
+  refreshBoard();
+};
+
+/* 백엔드 교체 지점 — LB.url 만 채우면 원격 순위표로 전환된다.
+   비워두면 이 브라우저 localStorage 에만 기록이 남는다. */
+const LB = {
+  url: 'https://toegeun-leaderboard.ian-ck-games.workers.dev',
+  get remote(){ return !!this.url; },
+  async top(n, who){
+    if (!this.remote) return {rows:localTop(n), myRank:localRank(who), total:readBoard().length};
+    const q = '/top?n=' + n + '&nick=' + encodeURIComponent(who || '');
+    const r = await fetch(this.url + q, {cache:'no-store'});
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    return await r.json();          // { rows:[{nick,lv,score}], myRank, total }
+  },
+  async submit(rec){
+    localAdd(rec);                       // 내 기록은 항상 이 브라우저에도 남긴다
+    if (!this.remote) return;
+    await fetch(this.url + '/score', {method:'POST',
+      headers:{'content-type':'application/json'}, body:JSON.stringify(rec)});
+  },
+};
+function readBoard(){ try{ return JSON.parse(localStorage.getItem('lot.board') || '[]'); }catch(e){ return []; } }
+function localTop(n){ return readBoard().sort((x,y)=>y.score-x.score).slice(0,n); }
+function localRank(who){
+  const b = readBoard().sort((x,y)=>y.score-x.score);
+  const i = b.findIndex(r => r.nick === who);
+  return i >= 0 ? i+1 : 0;
+}
+function localAdd(rec){
+  const b = readBoard(), i = b.findIndex(r => r.nick === rec.nick);
+  if (i >= 0){ if (rec.score > b[i].score) b[i] = rec; } else b.push(rec);
+  b.sort((x,y)=>y.score-x.score);
+  localStorage.setItem('lot.board', JSON.stringify(b.slice(0,100)));
+}
+let boardRows = null, boardErr = '', boardRank = 0, boardTotal = 0, boardLocal = false;
+function boardHTML(){
+  if (boardErr) return '<p class="lbnote">'+esc(boardErr)+'</p>';
+  if (!boardRows) return '<p class="lbnote">불러오는 중…</p>';
+  if (!boardRows.length) return '<p class="lbnote">아직 기록이 없다 — 첫 번째가 되어보자</p>';
+  return '<table class="lb"><tbody>' + boardRows.map((r,i) =>
+      '<tr' + (r.nick === nick ? ' class="me"' : '') + '>'
+      + '<td class="rk">' + (i+1) + '</td><td>' + esc(r.nick) + '</td>'
+      + '<td class="lv">LV.' + (+r.lv || 0) + '</td>'
+      + '<td class="sc">' + fmt(+r.score || 0) + '</td></tr>').join('')
+    + '</tbody></table>'
+    + (boardRank ? '<p class="lbnote">내 순위 <b style="color:var(--accent)">' + boardRank + '위</b>'
+                   + (boardTotal ? ' / ' + boardTotal + '명' : '') + '</p>'
+                 : '<p class="lbnote">아직 기록이 없다 — 한 판 하고 이름을 올려보자</p>')
+    + (boardLocal ? '<p class="lbnote">서버에 연결되지 않아 이 브라우저 기록만 보여준다</p>' : '');
+}
+function lbBlock(title){
+  return '<div class="lbh">' + title + '</div><div id="lbBody">' + boardHTML() + '</div>';
+}
+async function refreshBoard(){
+  try{
+    const d = await LB.top(10, nick);
+    boardRows = d.rows || []; boardRank = d.myRank || 0; boardTotal = d.total || 0;
+    boardErr = ''; boardLocal = !LB.remote;
+  }
+  catch(e){                              // 서버가 없거나 오프라인 — 로컬 기록으로 대체
+    boardRows = localTop(10); boardRank = localRank(nick);
+    boardTotal = readBoard().length; boardErr = ''; boardLocal = true;
+  }
+  const host = document.getElementById('lbBody');
+  if (host) host.innerHTML = boardHTML();
+}
+function report(){
+  if (skipped) return;                       // ?day= 로 건너뛴 판은 기록하지 않는다
+  const lv = state === 'clear' ? wave : Math.max(0, wave-1);
+  if (score <= 0) return;
+  LB.submit({nick, lv, score, seed:seedLabel()})
+    .then(refreshBoard).catch(() => { boardErr = '기록 전송 실패'; });
+}
+
 /* ============================ 사운드 ============================ */
 let muted = false, actx = null;
 function beep(freq,dur,type='square',vol=.05){
@@ -353,6 +462,34 @@ const SFX = {
   win(){ [660,880,1180].forEach((f,i)=>setTimeout(()=>beep(f,.16,'sine',.06), i*110)); },
   notif(){ beep(1046,.08,'sine',.05); setTimeout(()=>beep(1318,.1,'sine',.05),90); },
 };
+
+/* ============================ 시드 난수 ============================ */
+/* 같은 시드 = 같은 맵 배치. 멀티플레이·데일리 챌린지의 전제조건이다.
+   맵 배치(rMap)와 이벤트(rEvt) 스트림을 분리해서, 플레이 방식과 무관하게
+   맵은 항상 동일하게 재현되도록 한다. 거품·효과음 같은 연출은 시드를 쓰지 않는다. */
+function makeRng(seed){
+  let st = seed | 0;
+  return () => {
+    st = (st + 0x6D2B79F5) | 0;
+    let t = st;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+function hashSeed(str){
+  let h = 2166136261;
+  str = String(str);
+  for (let i=0;i<str.length;i++){ h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return h | 0;
+}
+let runSeed = 0;
+let rMap = makeRng(1), rEvt = makeRng(2);
+function seedLevel(lv){
+  rMap = makeRng(hashSeed(runSeed + ':map:' + lv));
+  rEvt = makeRng(hashSeed(runSeed + ':evt:' + lv));
+}
+const seedLabel = () => (runSeed >>> 0).toString(36).toUpperCase();
 
 /* ============================ 맵 (32px 격자 / 30x19칸) ============================ */
 const WALLS = [];   // 충돌 + (선택)시야차단 + 스프라이트
@@ -415,7 +552,7 @@ const DESKS = [];
 for (const y of [64,192,320,448]) for (const x of [96,256,416]) DESKS.push({x, y});
 let myDesk = 0, errDesk = 1, cupDesk = 2;
 function pickDesks(){
-  const n = DESKS.length, r = () => (Math.random()*n)|0;
+  const n = DESKS.length, r = () => (rMap()*n)|0;
   myDesk = r();
   do { errDesk = r(); } while (errDesk === myDesk);
   do { cupDesk = r(); } while (cupDesk === myDesk || cupDesk === errDesk);
@@ -549,6 +686,7 @@ let state = 'title';
 
 function startWave(w){
   const c = waveConfig(w);
+  seedLevel(w);
   tasks = c.tasks.slice(); done = {}; tasks.forEach(t => done[t] = false); carry = false;
   pickDesks();
   buildMap();
@@ -559,7 +697,7 @@ function startWave(w){
   holdKey = null; holdT = 0; alertMeter = 0; msg = ''; msgT = 0; typeCool = 0;
   timeLeft = c.deadline; phase = 'run'; caught = 0; typeSum = 0; typeCnt = 0;
   elevator = {open:0};
-  slackT = 5 + Math.random()*4; meeting = null; meetT = 7;
+  slackT = 5 + rEvt()*4; meeting = null; meetT = 7;
   endTyping(null, true);
 
   npcs.push(boss('ch3', 672, 352, Math.PI, .62, c.gaze, 0));
@@ -917,9 +1055,13 @@ addEventListener('keyup', e => {
 const clearKeys = () => { for (const k in keys) keys[k] = false; };
 addEventListener('blur', clearKeys);
 document.addEventListener('visibilitychange', () => { if (document.hidden) clearKeys(); });
+function newRunSeed(){
+  runSeed = qsSeed ? hashSeed(qsSeed)
+                   : ((Date.now() ^ ((Math.random()*4294967296)|0)) | 0);
+}
 function advance(){
   if (state === 'clear') wave++;
-  else { wave = 1; skipped = false; score = 0; }
+  else { wave = 1; skipped = false; score = 0; newRunSeed(); }   // 새 판 = 새 시드
   startWave(wave);
 }
 window.__adv = advance;
@@ -933,7 +1075,7 @@ window.__dbg = () => ({state, wave, phase,
        turn:+n.turn.toFixed(2), dir:+n.dir.toFixed(3)})),
   typeSum, typeCnt, caught, score,
   dish:{on:dish.active, prog:+dish.prog.toFixed(1), presses:dish.presses, held:dish.held, sec:+dish.elapsed.toFixed(1)},
-  myDesk, deskPt:{x:POINTS.desk.x, y:POINTS.desk.y},
+  seed:seedLabel(), myDesk, deskPt:{x:POINTS.desk.x, y:POINTS.desk.y},
   errDesk, errPt:{x:POINTS.err.x, y:POINTS.err.y},
   cupDesk, cupPt:{x:POINTS.cup.x, y:POINTS.cup.y}, carry,
   assets:{done:nDone, fail:nFail, total:nTotal}});
@@ -1031,9 +1173,9 @@ function update(dt){
         if (typeCool <= 0){
           if (tgt.T.kind === 'fix'){
             const b = (qsBug >= 0 && qsBug < BUGS.length)
-                    ? BUGS[qsBug] : BUGS[(Math.random()*BUGS.length)|0];
+                    ? BUGS[qsBug] : BUGS[(rEvt()*BUGS.length)|0];
             startTyping('fix', b.fix, 0, b.err, b.bad, b.tok);
-          } else startTyping('term', COMMITS[(Math.random()*COMMITS.length)|0], 0);
+          } else startTyping('term', COMMITS[(rEvt()*COMMITS.length)|0], 0);
         }
       } else if (tgt.T.kind === 'dish'){
         if (typeCool <= 0) startDish();
@@ -1080,8 +1222,8 @@ function update(dt){
   if (cfg.slack && !typing.active && !dish.active && phase === 'run' && player.stun <= 0){
     slackT -= dt;
     if (slackT <= 0 && timeLeft > 8){
-      const s = SLACKS[(Math.random()*SLACKS.length)|0];
-      slackT = 8 + Math.random()*5;
+      const s = SLACKS[(rEvt()*SLACKS.length)|0];
+      slackT = 8 + rEvt()*5;
       startTyping('slack', s[1], cfg.slackLimit, s[0]);
       SFX.notif();
     }
@@ -1094,9 +1236,9 @@ function update(dt){
         const z = meeting.zone;
         if (player.x>z.x && player.x<z.x+z.w && player.y>z.y && player.y<z.y+z.h)
           grab('📣 회의 끌려감', 3.5);
-        meeting = null; meetT = 6 + Math.random()*3;
+        meeting = null; meetT = 6 + rEvt()*3;
       }
-    } else { meetT -= dt; if (meetT <= 0){ meeting = {zone:zones[(Math.random()*zones.length)|0], t:1.6}; SFX.notif(); } }
+    } else { meetT -= dt; if (meetT <= 0){ meeting = {zone:zones[(rEvt()*zones.length)|0], t:1.6}; SFX.notif(); } }
   }
 
   // 엘베 — 마감 전에 문 앞에 가면 열린다. 일찍 갈수록 점수.
@@ -1135,6 +1277,7 @@ function win(){
     if (wave > bestLv){ bestLv = wave; localStorage.setItem('lot.bestLv', bestLv); }
     if (score > bestScore){ bestScore = score; localStorage.setItem('lot.bestScore', score); }
   }
+  report();
   const n = waveConfig(wave+1);
   const row = (l,v) => '<div><span>'+l+'</span><b>+'+fmt(v)+'</b></div>';
   showOverlay('<div class="big">🎉</div><h2>LV.'+wave+' 클리어!</h2>'
@@ -1163,6 +1306,7 @@ function lose(){
     if (cleared > bestLv){ bestLv = cleared; localStorage.setItem('lot.bestLv', bestLv); }
     if (score > bestScore){ bestScore = score; localStorage.setItem('lot.bestScore', score); }
   }
+  report();
   const left = tasks.filter(t => !done[t]);
   showOverlay('<div class="big">🌙</div><h2>야근 확정</h2>'
     + '<p>퇴근 마감 시간이 지났다. 오늘은 못 나간다.</p>'
@@ -1173,8 +1317,10 @@ function lose(){
     +   '<div><span>클리어한 레벨</span><b>'+cleared+'개</b></div>'
     +   '<div class="sum"><span>최종 점수</span><b>'+fmt(score)+'</b></div>'
     + '</div>'
-    + '<p style="font-size:12.5px">최고 기록 — LV.'+bestLv+' · '+fmt(bestScore)+'점</p>'
-    + '<button class="btn" onclick="window.__adv()">다시 출근 (Space)</button>');
+    + '<p style="font-size:12.5px">내 최고 — LV.'+bestLv+' · '+fmt(bestScore)+'점 · 시드 '+seedLabel()+'</p>'
+    + '<button class="btn" onclick="window.__adv()">다시 출근 (Space)</button>'
+    + lbBlock('🏆 순위표'));
+  refreshBoard();
 }
 
 /* ============================ 렌더 ============================ */
@@ -1384,6 +1530,8 @@ function drawElevator(){
 function syncHUD(){
   el.wave.innerHTML = 'LV.' + wave + ' <span style="color:#69728a;font-weight:400">· '+wave+'일차</span>';
   el.best.textContent = bestLv ? '🏆 최고 LV.' + bestLv + ' · ' + fmt(bestScore) + '점' : '';
+  el.nick.innerHTML = '나는 <b>' + esc(nick) + '</b>'
+    + '<button onclick="window.__reroll()" title="닉네임 다시 뽑기">🎲</button>';
   el.scoreNow.textContent = fmt(score);
   el.scoreGain.textContent = (state === 'playing' && phase === 'run')
     ? '+' + fmt(scoreBreak().total) : '—';
@@ -1476,15 +1624,16 @@ function title(){
     + '<span class="key"><b>Shift</b> — 살금살금 (조용·잘 안 들킴)</span>'
     + '<span class="key">할 일 지점에서 <b>가만히</b> — 처리 시작</span>'
     + '<span class="key">타이핑 후 <b>Enter</b> — 전송</span></div>'
-    + '<p style="font-size:12.5px">⏰ <b style="color:var(--warn)">퇴근 마감 시간</b> 안에 할 일을 끝내고 엘베 앞에 서면 문이 열린다.<br>'
-    + '<b style="color:var(--accent)">남은 시간이 많을수록 점수가 높다</b> — 레벨을 넘길수록 점수는 계속 쌓인다.<br>'
-    + '⚡ 슬랙 답장과 git 커밋을 <b style="color:var(--accent)">빨리 타이핑하면 추가 점수</b>.</p>'
+    + '<p style="font-size:12.5px">⏰ 마감 안에 엘베 앞에 서면 문이 열린다 — '
+    + '<b style="color:var(--accent)">빠를수록 고득점</b>. ⚡ 타이핑·설거지를 빨리 하면 추가 점수.</p>'
     + '<p style="font-size:12.5px">👔 팀장의 시선은 <b style="color:var(--warn)">정해진 패턴</b>으로만 움직인다. '
     + '리듬을 읽고 화분·책장 뒤로 붙어서 지나가라.</p>'
-    + '<p style="font-size:12.5px">레벨이 오를 때마다 <b style="color:var(--accent)">할 일이 하나씩 늘고</b> 마감 시간은 짧아진다.<br>'
-    + 'LV1 💻노트북·🎒가방 → LV2 ⌨️커밋 → LV3 ☕커피 → LV4 🚻화장실 → LV5 🚨오류수정 → LV6 🧽설거지<br>'
-    + '🖥️ <b style="color:#5ee1a0">초록 모니터</b>가 내 자리, <b style="color:#ff5f6d">빨간 모니터</b>는 장애 발생 자리 — 매 레벨 위치가 바뀐다.</p>'
-    + '<button class="btn" onclick="window.__adv()">LV.1 시작 (Space)</button>');
+    + '<p style="font-size:12.5px">레벨마다 할 일이 하나씩 늘어난다 — '
+    + '💻노트북 · 🎒가방 · ⌨️커밋 · ☕커피 · 🚻화장실 · 🚨오류수정 · 🧽설거지<br>'
+    + '🖥️ <b style="color:#5ee1a0">초록</b> 모니터가 내 자리, <b style="color:#ff5f6d">빨간</b> 모니터는 장애 발생 — 매 레벨 위치가 바뀐다.</p>'
+    + '<button class="btn" onclick="window.__adv()">LV.1 시작 (Space)</button>'
+    + lbBlock('🏆 순위표'));
+  refreshBoard();
 }
 
 /* ============================ 루프 ============================ */
@@ -1503,7 +1652,9 @@ const QS = new URLSearchParams(location.search);
 const qsDay  = parseInt(QS.get('day'), 10);
 const qsGoto = (QS.get('goto') || '').toLowerCase();   // err | desk | locker | trash | wc | elev
 const qsBug  = QS.has('bug') ? parseInt(QS.get('bug'), 10) : -1;
+const qsSeed = QS.get('seed');                          // ?seed=abc — 같은 배치 재현
 function boot(){
+  newRunSeed();
   if (qsDay >= 1 && qsDay <= 99){ wave = qsDay; skipped = qsDay > 1; startWave(wave); }
   else title();
 }
