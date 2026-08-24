@@ -70,6 +70,26 @@
   header .nick button:hover{color:var(--ink);border-color:var(--accent)}
   header .best{font-size:12px;color:var(--warn)}
 
+  /* 팩(직군·언어) 선택 — 타이틀 카드 */
+  .packs{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin:10px 0 4px}
+  .packs button{background:#202634;border:1px solid var(--line);color:var(--dim);border-radius:10px;
+    padding:9px 14px;font-size:13px;cursor:pointer;font-family:inherit;display:flex;
+    align-items:center;gap:7px;line-height:1.3}
+  .packs button:hover{color:var(--ink);border-color:var(--accent)}
+  .packs button.on{border-color:var(--accent);color:var(--ink);background:#1a2b23;font-weight:700}
+  .packs button i{font-style:normal;font-size:15px}
+  .packs button s{text-decoration:none;font-size:11px;color:#69728a;font-weight:400}
+  .packs button.on s{color:var(--accent)}
+  .packrow{font-size:11px;letter-spacing:.08em;color:#7b8497;font-weight:800;
+    text-transform:uppercase;margin:14px 0 0}
+
+  /* 순위표 탭 — 전체 / 직군 / 언어 */
+  .lbtabs{display:flex;gap:5px;justify-content:center;flex-wrap:wrap;margin:0 auto 10px;max-width:420px}
+  .lbtabs button{background:#202634;border:1px solid var(--line);color:#7b8497;border-radius:999px;
+    padding:4px 11px;font-size:11.5px;cursor:pointer;font-family:inherit}
+  .lbtabs button:hover{color:var(--ink)}
+  .lbtabs button.on{border-color:var(--accent);color:var(--accent);font-weight:700}
+
   .lbh{margin:18px 0 8px;font-size:11px;letter-spacing:.08em;color:#7b8497;font-weight:800;text-transform:uppercase}
   table.lb{width:100%;max-width:400px;margin:0 auto;border-collapse:collapse;font-size:13px}
   table.lb td{padding:5px 8px;border-bottom:1px solid rgba(255,255,255,.06);color:var(--dim)}
@@ -486,12 +506,27 @@ window.__cancelNick = () => { nickEditing = false; };
 
 /* 백엔드 교체 지점 — LB.url 만 채우면 원격 순위표로 전환된다.
    비워두면 이 브라우저 localStorage 에만 기록이 남는다. */
+/* 순위표 탭 — 전체 / 언어별 / 기획자.
+   서버 필터(q)와 로컬 폴백 필터(f)가 반드시 같은 조건을 봐야 한다. 한쪽만 고치면
+   서버가 살아있을 때와 죽었을 때 다른 목록이 나와서 버그로 안 보인다.
+   팩이 없던 시절의 기록은 dev:js 로 백필되어 JS 탭에도 나온다 (readBoard 주석 참고). */
+const LBTABS = [
+  {q:'',            n:'전체',      f:() => true},
+  {q:'lang=js',     n:'🟨 JS',     f:r => r.lang === 'js'},
+  {q:'lang=kotlin', n:'🟪 Kotlin', f:r => r.lang === 'kotlin'},
+  {q:'lang=swift',  n:'🟧 Swift',  f:r => r.lang === 'swift'},
+  // 기획자는 lang 이 'policy' 하나뿐이지만 role 로 거른다 — 나중에 도메인(커머스·물류·정산)이
+  // 늘어도 이 탭이 전부 모아준다. 개발자 탭은 세 언어의 합집합이라 중복이어서 뺐다.
+  {q:'role=pm',     n:'📋 기획자',  f:r => r.role === 'pm'},
+];
+let lbTab = 0;
 const LB = {
   url: 'https://toegeun-leaderboard.ian-ck-games.workers.dev',
   get remote(){ return !!this.url; },
   async top(n, who){
-    if (!this.remote) return {rows:localTop(n), myRank:localRank(who), total:readBoard().length};
-    const q = '/top?n=' + n + '&pid=' + encodeURIComponent(pid);
+    if (!this.remote) return {rows:localTop(n), myRank:localRank(who), total:localTotal()};
+    const q = '/top?n=' + n + '&pid=' + encodeURIComponent(pid)
+            + (LBTABS[lbTab].q ? '&' + LBTABS[lbTab].q : '');
     const r = await fetch(this.url + q, {cache:'no-store'});
     if (!r.ok) throw new Error('HTTP ' + r.status);
     return await r.json();          // { rows:[{nick,lv,score}], myRank, total }
@@ -503,15 +538,42 @@ const LB = {
       headers:{'content-type':'application/json'}, body:JSON.stringify(rec)});
   },
 };
-function readBoard(){ try{ return JSON.parse(localStorage.getItem('lot.board') || '[]'); }catch(e){ return []; } }
-function localTop(n){ return readBoard().sort((x,y)=>y.score-x.score).slice(0,n); }
+/* 팩이 없던 시절의 기록은 전부 JavaScript 판이었다 — 그때 커밋 문장도 버그 코드도 JS 하나뿐이었다.
+   그래서 dev:js 로 읽어준다. 서버 migrate-004 의 백필과 같은 기준이어야
+   서버가 살아있을 때와 죽었을 때 같은 목록이 나온다.
+   덕분에 legacy 행이 새 dev:js 기록과 같은 행으로 합쳐져 중복도 생기지 않는다. */
+function readBoard(){
+  try{
+    const b = JSON.parse(localStorage.getItem('lot.board') || '[]');
+    return b.map(r => r.role ? r : Object.assign({}, r, {role:'dev', lang:'js'}));
+  }catch(e){ return []; }
+}
+/* 서버와 같은 집계를 로컬에서도 재현한다.
+   '전체'(scores) 는 pid 당 한 행 = 역대 최고점, 팩 탭(pack_scores) 은 pid+팩 당 한 행.
+   합치지 않으면 여러 팩을 뛴 사람이 '전체' 에 두 번 나와 서버와 다른 목록이 된다. */
+function tabRows(){
+  const rows = readBoard().filter(LBTABS[lbTab].f);
+  if (lbTab){                                   // 팩 탭 — 저장 단위가 이미 pid+팩
+    return rows.sort((x,y)=>y.score-x.score);
+  }
+  const best = new Map();                       // 전체 탭 — pid 로 접어서 최고점만
+  for (const r of rows){
+    const cur = best.get(r.pid);
+    if (!cur || r.score > cur.score) best.set(r.pid, r);
+  }
+  return [...best.values()].sort((x,y)=>y.score-x.score);
+}
+function localTop(n){ return tabRows().slice(0,n); }
+function localTotal(){ return tabRows().length; }
 function localRank(){
-  const b = readBoard().sort((x,y)=>y.score-x.score);
+  const b = tabRows();
   const i = b.findIndex(r => r.pid === pid);
   return i >= 0 ? i+1 : 0;
 }
 function localAdd(rec){
-  const b = readBoard(), i = b.findIndex(r => r.pid === rec.pid);
+  // pid 하나가 여러 팩을 뛸 수 있다 → pid+role+lang 이 한 행. 서버 pack_scores 와 같은 모델.
+  const b = readBoard();
+  const i = b.findIndex(r => r.pid === rec.pid && r.role === rec.role && r.lang === rec.lang);
   if (i >= 0){
     b[i].nick = rec.nick;                       // 이름은 최신으로 갱신
     if (rec.score > b[i].score) b[i] = rec;
@@ -523,7 +585,9 @@ let boardRows = null, boardErr = '', boardRank = 0, boardTotal = 0, boardLocal =
 function boardHTML(){
   if (boardErr) return '<p class="lbnote">'+esc(boardErr)+'</p>';
   if (!boardRows) return '<p class="lbnote">불러오는 중…</p>';
-  if (!boardRows.length) return '<p class="lbnote">아직 기록이 없다 — 첫 번째가 되어보자</p>';
+  if (!boardRows.length) return '<p class="lbnote">'
+      + (lbTab ? '이 탭에는 아직 기록이 없다 — 첫 번째가 되어보자' : '아직 기록이 없다 — 첫 번째가 되어보자')
+      + '</p>';
   return '<table class="lb"><tbody>' + boardRows.map((r,i) =>
       '<tr' + (r.nick === nick ? ' class="me"' : '') + '>'
       + '<td class="rk">' + (i+1) + '</td><td>' + esc(r.nick) + '</td>'
@@ -533,11 +597,30 @@ function boardHTML(){
     + (boardRank ? '<p class="lbnote">내 순위 <b style="color:var(--accent)">' + boardRank + '위</b>'
                    + (boardTotal ? ' / ' + boardTotal + '명' : '') + '</p>'
                  : '<p class="lbnote">아직 <b>내</b> 기록이 없다 — 한 판 하고 이름을 올려보자</p>')
-    + (boardLocal ? '<p class="lbnote">서버에 연결되지 않아 이 브라우저 기록만 보여준다</p>' : '');
+    + (boardLocal ? '<p class="lbnote">서버에 연결되지 않아 이 브라우저 기록만 보여준다</p>' : '')
+    + (lbTab ? '' : '<p class="lbnote">직군·언어 탭은 팩을 고른 뒤의 기록만 집계된다</p>');
+}
+function lbTabsHTML(){
+  return '<div class="lbtabs" id="lbTabs">' + LBTABS.map((t,i) =>
+      '<button' + (i === lbTab ? ' class="on"' : '') + ' onclick="window.__lbTab(' + i + ')">'
+      + t.n + '</button>').join('') + '</div>';
 }
 function lbBlock(title){
-  return '<div class="lbh">' + title + '</div><div id="lbBody">' + boardHTML() + '</div>';
+  return '<div class="lbh">' + title + '</div>' + lbTabsHTML()
+       + '<div id="lbBody">' + boardHTML() + '</div>';
 }
+/* 탭 전환 — innerHTML 로 버튼을 다시 그리지 않고 class 만 토글한다.
+   눌린 버튼이 사라지면 브라우저가 click 을 안 쏘는 문제(setHTML 주석 참고)를 피한다. */
+window.__lbTab = i => {
+  if (i === lbTab || !LBTABS[i]) return;
+  lbTab = i;
+  const host = document.getElementById('lbTabs');
+  if (host) [...host.children].forEach((b, j) => { b.className = j === i ? 'on' : ''; });
+  boardRows = null;
+  const body = document.getElementById('lbBody');
+  if (body) body.innerHTML = boardHTML();
+  refreshBoard();
+};
 async function refreshBoard(){
   try{
     const d = await LB.top(10, nick);
@@ -665,7 +748,7 @@ function report(){
   if (skipped) return;                       // ?day= 로 건너뛴 판은 기록하지 않는다
   const lv = state === 'clear' ? wave : Math.max(0, wave-1);
   if (score <= 0) return;
-  LB.submit({pid, nick, lv, score, seed:seedLabel()})
+  LB.submit({pid, nick, lv, score, seed:seedLabel(), role:P.role, lang:P.lang})
     .then(refreshBoard).catch(() => { boardErr = '기록 전송 실패'; });
 }
 
@@ -835,29 +918,171 @@ const LOC = {desk:'내 자리 (초록 모니터)', err:'빨간 모니터 — 경
 const INTRO = ['laptop','bag','commit','coffee','toilet','error','dish'];
 const ORDER = ['error','commit','laptop','coffee','dish','bag','toilet'];
 
-const COMMITS = [
-  'git commit -m "fix typo"',
-  'git commit -m "hotfix: null check"',
-  'git commit -m "chore: remove log"',
-  'git commit -m "fix: elevator bug"',
-  'git push origin main',
-  'git stash save wip',
-];
-// 초보도 바로 알아볼 수 있는 오타 버그 — 입력창에 버그 코드가 미리 채워져 있고 커서로 고친다
-const BUGS = [
-  {bad:"fpr (let i = 0; i < 10; i++) {", fix:"for (let i = 0; i < 10; i++) {", err:"SyntaxError: unexpected token 'fpr'",            tok:"fpr"},
-  {bad:"lf (user.isAdmin) {",            fix:"if (user.isAdmin) {",            err:"SyntaxError: unexpected token 'lf'",             tok:"lf"},
-  {bad:"retrun total;",                  fix:"return total;",                  err:"SyntaxError: unexpected token 'retrun'",         tok:"retrun"},
-  {bad:"consol.log(items.length);",      fix:"console.log(items.length);",     err:"ReferenceError: consol is not defined",          tok:"consol"},
-  {bad:"whlie (queue.length) {",         fix:"while (queue.length) {",         err:"SyntaxError: unexpected token 'whlie'",          tok:"whlie"},
-  {bad:"improt React from 'react';",     fix:"import React from 'react';",     err:"SyntaxError: unexpected token 'improt'",         tok:"improt"},
-  {bad:"cosnt name = 'admin';",          fix:"const name = 'admin';",          err:"SyntaxError: unexpected identifier 'cosnt'",     tok:"cosnt"},
-  {bad:"elsif (score > 90) {",           fix:"else if (score > 90) {",         err:"SyntaxError: unexpected token 'elsif'",          tok:"elsif"},
-  {bad:"const arr = [1, 2, 3;",          fix:"const arr = [1, 2, 3];",         err:"SyntaxError: missing ] after element list",      tok:"] 닫는 괄호"},
-  {bad:"document.getElementByid('app')", fix:"document.getElementById('app')", err:"TypeError: getElementByid is not a function",    tok:"ById 대소문자"},
-  {bad:"return arr.lenght;",             fix:"return arr.length;",             err:"undefined 반환 — 프로퍼티 이름을 확인하세요",       tok:"lenght"},
-  {bad:"if (count = 0) {",               fix:"if (count === 0) {",             err:"조건문에 대입(=)이 쓰였습니다 — 비교 연산자를 쓰세요", tok:"= 하나뿐인 등호"},
-];
+/* ============================ 직군 · 언어 팩 ============================
+   ⌨️커밋 / 🚨오류수정 의 내용만 갈아끼운다. 맵·마감시간·NPC 는 전 팩 공통이다.
+
+   두 미션의 축을 다르게 유지하는 것이 이 구조의 핵심이다.
+     term(커밋)  정답을 보여준다 → 손 속도 승부
+     fix(오류)   정답을 숨기고 증상만 준다 → 위치 판단 승부. 고칠 곳은 반드시 한 군데.
+   증상(err)은 "무엇이 잘못됐는지"까지 알려준다 — 개발자판 콘솔 에러와 같은 친절도로.
+   퍼즐로 만들면 par 안에 못 끝내 ⚡보너스가 통째로 0이 되고 부당하게 느껴진다.
+
+   ⚠️ 규격 — 어기면 조용히 깨진다
+     1. bugs 는 정확히 12개, commits 는 정확히 6개. rEvt() 로 인덱싱하므로 길이가
+        다르면 같은 시드가 팩마다 다른 문제를 낸다 (데일리 챌린지·재현성 전제 붕괴).
+     2. 같은 슬롯 번호는 팩끼리 같은 난이도여야 한다. 아래 SLOTS 주석이 그 계약이다.
+     3. 글자수를 15~40자 밴드 안에 둔다. par 이 글자수의 함수라서 밴드를 벗어나면
+        팩끼리 점수가 어긋나고 순위표 비교가 무의미해진다.
+     4. ascii:true 팩은 본문에 한글을 쓸 수 없다 (입력창이 한글을 걸러낸다).
+
+   SLOTS(bugs)    0 반복문키워드 · 1 조건키워드 · 2 return · 3 로그함수 · 4 while ·
+                  5 import · 6 변수선언 · 7 else if · 8 닫는괄호 · 9 대소문자 ·
+                  10 프로퍼티이름 · 11 비교연산자
+   SLOTS(commits) 0 오타수정 · 1 핫픽스 · 2 잡일 · 3 기능수정 · 4 푸시·전달 · 5 빌드·테스트
+*/
+const DEV_COMMON = {role:'dev', roleName:'개발자', ascii:true, termK:.30, fixRead:3.5,
+                    termTitle:'zsh — ~/work/office', labels:{}, doing:{}, newAt:{}};
+const PACKS = {
+'dev:js': Object.assign({}, DEV_COMMON, {
+  lang:'js', langName:'JavaScript', icon:'🟨', fixTitle:'error.js — 배포 중단됨',
+  commits:[
+    'git commit -m "fix typo"',
+    'git commit -m "hotfix: null check"',
+    'git commit -m "chore: remove log"',
+    'git commit -m "fix: elevator bug"',
+    'git push origin main',
+    'npm test -- --run',
+  ],
+  bugs:[
+    {bad:"fpr (let i = 0; i < 10; i++) {", fix:"for (let i = 0; i < 10; i++) {", err:"SyntaxError: unexpected token 'fpr'",            tok:"fpr"},
+    {bad:"lf (user.isAdmin) {",            fix:"if (user.isAdmin) {",            err:"SyntaxError: unexpected token 'lf'",             tok:"lf"},
+    {bad:"retrun total;",                  fix:"return total;",                  err:"SyntaxError: unexpected token 'retrun'",         tok:"retrun"},
+    {bad:"consol.log(items.length);",      fix:"console.log(items.length);",     err:"ReferenceError: consol is not defined",          tok:"consol"},
+    {bad:"whlie (queue.length) {",         fix:"while (queue.length) {",         err:"SyntaxError: unexpected token 'whlie'",          tok:"whlie"},
+    {bad:"improt React from 'react';",     fix:"import React from 'react';",     err:"SyntaxError: unexpected token 'improt'",         tok:"improt"},
+    {bad:"cosnt name = 'admin';",          fix:"const name = 'admin';",          err:"SyntaxError: unexpected identifier 'cosnt'",     tok:"cosnt"},
+    {bad:"elsif (score > 90) {",           fix:"else if (score > 90) {",         err:"SyntaxError: unexpected token 'elsif'",          tok:"elsif"},
+    {bad:"const arr = [1, 2, 3;",          fix:"const arr = [1, 2, 3];",         err:"SyntaxError: missing ] after element list",      tok:"] 닫는 괄호"},
+    {bad:"document.getElementByid('app')", fix:"document.getElementById('app')", err:"TypeError: getElementByid is not a function",    tok:"ById 대소문자"},
+    {bad:"return arr.lenght;",             fix:"return arr.length;",             err:"undefined 반환 — 프로퍼티 이름을 확인하세요",       tok:"lenght"},
+    {bad:"if (count = 0) {",               fix:"if (count === 0) {",             err:"조건문에 대입(=)이 쓰였습니다 — 비교 연산자를 쓰세요", tok:"= 하나뿐인 등호"},
+  ],
+}),
+'dev:kotlin': Object.assign({}, DEV_COMMON, {
+  lang:'kotlin', langName:'Kotlin', icon:'🟪', fixTitle:'Error.kt — 빌드 실패',
+  commits:[
+    'git commit -m "fix typo"',
+    'git commit -m "hotfix: NPE guard"',
+    'git commit -m "chore: bump ktlint"',
+    'git commit -m "fix: elevator bug"',
+    'git push origin main',
+    './gradlew test',
+  ],
+  bugs:[
+    {bad:"fpr (i in 0 until 10) {",      fix:"for (i in 0 until 10) {",      err:"Syntax error: unexpected token 'fpr'",                  tok:"fpr"},
+    {bad:"lf (user.isAdmin) {",          fix:"if (user.isAdmin) {",          err:"Syntax error: unexpected token 'lf'",                   tok:"lf"},
+    {bad:"retrun total",                 fix:"return total",                 err:"Syntax error: unexpected token 'retrun'",               tok:"retrun"},
+    {bad:"pritnln(items.size)",          fix:"println(items.size)",          err:"Unresolved reference: pritnln",                         tok:"pritnln"},
+    {bad:"whlie (queue.isNotEmpty()) {", fix:"while (queue.isNotEmpty()) {", err:"Syntax error: unexpected token 'whlie'",                tok:"whlie"},
+    {bad:"improt kotlinx.coroutines.*",  fix:"import kotlinx.coroutines.*",  err:"Syntax error: unexpected token 'improt'",               tok:"improt"},
+    {bad:'vla name = "admin"',           fix:'val name = "admin"',           err:"Syntax error: unexpected token 'vla'",                  tok:"vla"},
+    {bad:"esle if (score > 90) {",       fix:"else if (score > 90) {",       err:"Syntax error: unexpected token 'esle'",                 tok:"esle"},
+    {bad:"val arr = listOf(1, 2, 3",     fix:"val arr = listOf(1, 2, 3)",    err:"Syntax error: expecting ')'",                           tok:") 닫는 괄호"},
+    {bad:"if (name.IsEmpty()) {",        fix:"if (name.isEmpty()) {",        err:"Unresolved reference: IsEmpty",                         tok:"IsEmpty 대소문자"},
+    {bad:"return arr.siez",              fix:"return arr.size",              err:"Unresolved reference: siez — 프로퍼티 이름을 확인하세요",   tok:"siez"},
+    {bad:"if (count = 0) {",             fix:"if (count == 0) {",            err:"Assignments are not expressions — 비교 연산자를 쓰세요",    tok:"= 하나뿐인 등호"},
+  ],
+}),
+'dev:swift': Object.assign({}, DEV_COMMON, {
+  lang:'swift', langName:'Swift', icon:'🟧', fixTitle:'Error.swift — 빌드 실패',
+  commits:[
+    'git commit -m "fix typo"',
+    'git commit -m "hotfix: unwrap crash"',
+    'git commit -m "chore: bump swiftlint"',
+    'git commit -m "fix: elevator bug"',
+    'git push origin main',
+    'swift test',
+  ],
+  bugs:[
+    {bad:"fro i in 0..<10 {",          fix:"for i in 0..<10 {",          err:"Syntax error: unexpected token 'fro'",                  tok:"fro"},
+    {bad:"fi user.isAdmin {",          fix:"if user.isAdmin {",          err:"Syntax error: unexpected token 'fi'",                   tok:"fi"},
+    {bad:"retrun total",               fix:"return total",               err:"Syntax error: unexpected token 'retrun'",               tok:"retrun"},
+    {bad:"pirnt(items.count)",         fix:"print(items.count)",         err:"Cannot find 'pirnt' in scope",                          tok:"pirnt"},
+    {bad:"whlie !queue.isEmpty {",     fix:"while !queue.isEmpty {",     err:"Syntax error: unexpected token 'whlie'",                tok:"whlie"},
+    {bad:"improt Foundation",          fix:"import Foundation",          err:"Syntax error: unexpected token 'improt'",               tok:"improt"},
+    {bad:'lte name = "admin"',         fix:'let name = "admin"',         err:"Syntax error: unexpected token 'lte'",                  tok:"lte"},
+    {bad:"esle if score > 90 {",       fix:"else if score > 90 {",       err:"Syntax error: unexpected token 'esle'",                 tok:"esle"},
+    {bad:"let arr = [1, 2, 3",         fix:"let arr = [1, 2, 3]",        err:"Syntax error: expected ']' in array literal",           tok:"] 닫는 괄호"},
+    {bad:"if name.IsEmpty {",          fix:"if name.isEmpty {",          err:"Value of type 'String' has no member 'IsEmpty'",        tok:"IsEmpty 대소문자"},
+    {bad:"return arr.cont",            fix:"return arr.count",           err:"Value of type '[Int]' has no member 'cont'",             tok:"cont"},
+    {bad:"if count = 0 {",             fix:"if count == 0 {",            err:"Use of '=' in a boolean context — 비교 연산자를 쓰세요",     tok:"= 하나뿐인 등호"},
+  ],
+}),
+/* 기획자 — 커밋 자리는 '문의 대응'이 아니라 '확정·선언'이다.
+   문의 대응으로 두면 💬슬랙과 미션이 겹쳐 세 미션이 하나로 붕괴한다. */
+'pm:policy': {
+  role:'pm', roleName:'기획자', lang:'policy', langName:'정책', icon:'📋',
+  ascii:false,                 // 본문이 한글 — 입력창의 한글 필터를 끈다
+  termK:.62,                   // 한글은 한 글자에 2~3 타 + 한/영 전환 → ASCII(.30)의 두 배로 잡았다
+  fixRead:4.0,                 // 정책문 한 줄 읽는 시간. 개발자판 3.5 와 체감 par 이 맞도록 잡았다
+  termTitle:'Jira — KURLY-1234',
+  fixTitle:'결제정책 v2.1 — 배포 보류',
+  labels:{commit:'스펙 확정', error:'정책 수정'},
+  doing :{commit:'확정 코멘트 쓰는 중', error:'정책 고치는 중'},
+  newAt :{2:'⌨️ 스펙 확정 없이 퇴근하면 안 되죠 — 그리고 💬 슬랙이 오면 답장을 타이핑해야 한다.',
+          5:'🚨 정책 오류 제보! 빨간 모니터를 찾아 정책 문장을 고쳐야 한다. 🕴️ 임원 등장, 👀 팀장 시선 3단 스캔.'},
+  commits:[
+    '[확정] 쿠폰 정책 v2.1',
+    '[긴급] 프로모션 롤백 요청',
+    '[정리] 스펙 코멘트 반영 완료',
+    '[확정] 비회원 결제 오픈',
+    '릴리즈 노트 공유드립니다',
+    'QA 시나리오 검토 완료',
+  ],
+  bugs:[
+    {bad:"쿠폰은 1만원 이하 주문 시 3천원 할인", fix:"쿠폰은 1만원 이상 주문 시 3천원 할인",
+     err:"CS 제보 — 3만원 주문인데 할인이 안 됩니다. 최소금액 조건이 뒤집혔습니다", tok:"이하 → 이상"},
+    {bad:"프로모션 기간: 8/30 오픈 ~ 8/24 종료", fix:"프로모션 기간: 8/30 오픈 ~ 9/24 종료",
+     err:"기간이 음수로 계산됩니다 — 종료일이 시작일보다 앞섭니다", tok:"8/24 → 9/24"},
+    {bad:"무료배송 기준: 30,000월 이상 결제", fix:"무료배송 기준: 30,000원 이상 결제",
+     err:"단위 표기 오류 — '월'이 아니라 '원'입니다", tok:"월 → 원"},
+    {bad:"무료배송 기준 금액은 3,000원이다", fix:"무료배송 기준 금액은 30,000원이다",
+     err:"전 주문이 무료배송으로 나갑니다 — 자릿수를 확인하세요", tok:"3,000 → 30,000"},
+    {bad:"수수료를 2%에서 3%로 1% 인상한다", fix:"수수료를 2%에서 3%로 1%p 인상한다",
+     err:"정산팀 문의 — 인상폭 표기가 애매합니다. %와 %p를 구분해주세요", tok:"1% → 1%p"},
+    {bad:"회원 등급: 실버, 골드, 다이야", fix:"회원 등급: 실버, 골드, 다이아",
+     err:"등급명 오타 — 화면에 '다이야'로 노출됩니다", tok:"다이야 → 다이아"},
+    {bad:"비회원도 쿠폰을 사용할 수 있다", fix:"비회원도 쿠폰을 사용할 수 없다",
+     err:"기획서와 반대로 동작합니다 — 비회원은 쿠폰 사용 불가입니다", tok:"있다 → 없다"},
+    {bad:"주문 취소는 발송 후에만 가능하다", fix:"주문 취소는 발송 전에만 가능하다",
+     err:"발송된 주문이 취소되고 있습니다 — 발송 전에만 가능해야 합니다", tok:"후 → 전"},
+    {bad:"전환율 = 주문 120 / 방문 3,000 = 0.4%", fix:"전환율 = 주문 120 / 방문 3,000 = 4%",
+     err:"대시보드 수치가 실제와 10배 차이납니다 — 계산이 틀렸습니다", tok:"0.4% → 4%"},
+    {bad:"1인 1매 한정, 최대 3매까지 구매", fix:"1인 3매 한정, 최대 3매까지 구매",
+     err:"개발팀 문의 — 앞뒤 수량 조건이 서로 다릅니다", tok:"1매 한정 → 3매 한정"},
+    {bad:"결제 취소는 3.2절을 참고한다", fix:"결제 취소는 4.1절을 참고한다",
+     err:"3.2절은 배송 정책입니다 — 결제 취소는 4.1절입니다", tok:"3.2절 → 4.1절"},
+    {bad:"배송 마감 시각: 오후 2시 (12:00)", fix:"배송 마감 시각: 오후 2시 (14:00)",
+     err:"표기된 두 시각이 다릅니다 — 24시간 표기를 맞춰주세요", tok:"12:00 → 14:00"},
+  ],
+},
+};
+/* 팩 선택 — localStorage 에 남기고 ?pack= 으로 덮어쓸 수 있다.
+   시드 파생식에는 절대 넣지 않는다. 같은 시드는 어느 팩에서든 같은 배치여야 한다. */
+const PACK_KEYS = Object.keys(PACKS);
+let packKey = (new URLSearchParams(location.search).get('pack') || '').toLowerCase();
+if (!PACKS[packKey]) packKey = localStorage.getItem('lot.pack') || '';
+if (!PACKS[packKey]) packKey = 'dev:js';
+let P = PACKS[packKey];
+window.__setPack = k => {
+  if (!PACKS[k] || state !== 'title') return;
+  packKey = k; P = PACKS[k];
+  localStorage.setItem('lot.pack', k);
+  htmlCache.todo = null;                  // 라벨이 바뀌므로 체크리스트 캐시 무효화
+  title();
+};
+const tLabel = t => P.labels[t] || TASKS[t].label;
+
 const SLACKS = [
   ['잠깐 시간 되세요?',       '지금 좀 바쁩니다'],
   ['이거 오늘까지 되나요?',   '내일 오전에 드릴게요'],
@@ -885,7 +1110,7 @@ function waveConfig(w){
     slackLimit: Math.max(4.5, 8 - w*0.35),
   };
 }
-const NEW_AT = {
+const NEW_AT_BASE = {
   2:'⌨️ 커밋 안 하고 퇴근하면 안 되죠 — 그리고 💬 슬랙이 오면 답장을 타이핑해야 한다.',
   3:'☕ 마시던 커피를 쓰레기통까지 들고 가서 버려야 한다. 👀 팀장 시선에 되돌아보기가 추가된다.',
   4:'🚻 화장실 한 번 다녀와야 한다 (엘베 옆). 🧑🧑 순회하는 동료가 2명으로 늘어난다.',
@@ -893,6 +1118,7 @@ const NEW_AT = {
   6:'🧽 탕비실에 컵이 쌓였다 — 싱크대에서 설거지(Enter 연타). 👔👔 팀장도 2명 체제.',
   7:'📣 갑작스러운 회의 소집. 👀 팀장 시선이 불규칙해진다 — 변곡점 8개.',
 };
+const newAt = lv => P.newAt[lv] || NEW_AT_BASE[lv];
 const GAZE_NAME = ['좌우 왕복', '되돌아보기', '3단 스캔', '불규칙'];
 
 /* ============================ 상태 ============================ */
@@ -907,9 +1133,9 @@ let wave = 1, skipped = false, score = 0, caught = 0, typeSum = 0, typeCnt = 0;
 function typeBonus(kind, chars, sec){
   // fix 는 이미 채워진 코드에서 오타를 찾아 고치는 것이라 읽는 시간을 par에 포함
   const par = kind === 'dish' ? 9.0
-            : kind === 'fix'  ? 3.5 + chars*.12
-            : kind === 'term' ? 1.0 + chars*.30
-                              : 1.0 + chars*.36;
+            : kind === 'fix'  ? P.fixRead + chars*.12
+            : kind === 'term' ? 1.0 + chars*P.termK
+                              : 1.0 + chars*.36;   // 슬랙은 전 팩 공통(한글)
   const cap = kind === 'dish' ? 500 : kind === 'fix' ? 700 : kind === 'term' ? 600 : 450;
   const ratio = Math.max(0, Math.min(1, (par - sec) / par));
   return Math.round(ratio * cap);
@@ -1045,21 +1271,21 @@ function collide(p){
 
 /* ============================ 타이핑 챌린지 ============================ */
 function startTyping(kind, text, limit, msgText, prefill, tok){
-  typing.active = true; typing.kind = kind; typing.target = text;
+  typing.active = true; typing.kind = kind; typing.target = text.normalize('NFC');
   typing.limit = limit; typing.left = limit; typing.elapsed = 0;
   typing.tok = tok || ''; typing.hinted = false; typing.imeWarned = false;
   el.panel.className = kind;
   el.panel.style.display = 'block';
   el.tIcon.textContent = kind === 'slack' ? '💬' : kind === 'fix' ? '🚨' : '⌨️';
   el.tTitle.textContent = kind === 'slack' ? '팀장'
-                        : kind === 'fix'   ? 'error.js — 배포 중단됨'
-                                           : 'zsh — ~/work/office';
+                        : kind === 'fix'   ? P.fixTitle
+                                           : P.termTitle;
   el.tMsg.textContent = msgText || '';
   el.tMsg.style.display = msgText ? 'block' : 'none';
   el.tHint.innerHTML = (kind === 'slack'
     ? '그대로 입력 — 빨리 칠수록 ⚡보너스, 늦으면 팀장이 온다'
     : kind === 'fix'
-    ? '커서를 옮겨 오타를 고치고 Enter — 빨리 고칠수록 ⚡보너스 (Esc — 나중에)'
+    ? '커서를 옮겨 ' + (P.ascii ? '오타를' : '정책을') + ' 고치고 Enter — 빨리 고칠수록 ⚡보너스 (Esc — 나중에)'
     : '그대로 입력 — 빨리 칠수록 ⚡보너스 (Esc — 나중에)')
     + '<span class="enter">Enter 전송</span>';
   // fix 모드는 정답을 보여주지 않는다 — 버그 코드가 입력창에 미리 채워져 있다
@@ -1088,19 +1314,19 @@ function endTyping(success, silent){
   el.panel.style.display = 'none';
   el.tInput.blur();
   if (silent) return;
-  if (!success && kind === 'term'){ typeCool = 1.4; flash('⌨️ 커밋 미룸 — 노트북은 아직 못 끈다'); }
+  if (!success && kind === 'term'){ typeCool = 1.4; flash('⌨️ ' + tLabel('commit') + ' 미룸 — 노트북은 아직 못 끈다'); }
   if (!success && kind === 'fix'){ typeCool = 1.4; flash('🚨 오류 방치 — 경고등이 계속 켜져 있다'); }
   if (success){
     SFX.pick();
     const bonus = typeBonus(kind, len, sec);
     if (bonus > 0){ typeSum += bonus; typeCnt++; beep(1760,.09,'sine',.05); }
     const tag = sec.toFixed(1) + '초' + (bonus > 0 ? '  ⚡+' + fmt(bonus) : '  (보너스 없음)');
-    if (kind === 'term'){ done.commit = true; flash('⌨️ 커밋 완료 — ' + tag); }
-    else if (kind === 'fix'){ done.error = true; flash('🚨 오류 수정 완료 — ' + tag); }
+    if (kind === 'term'){ done.commit = true; flash('⌨️ ' + tLabel('commit') + ' 완료 — ' + tag); }
+    else if (kind === 'fix'){ done.error = true; flash('🚨 ' + tLabel('error') + ' 완료 — ' + tag); }
     else flash('💬 답장 전송 — ' + tag);
   }
 }
-const ASCII_MODE = k => k === 'fix' || k === 'term';
+const ASCII_MODE = k => (k === 'fix' || k === 'term') && P.ascii;
 el.tInput.addEventListener('input', () => {
   if (!typing.active) return;
   if (ASCII_MODE(typing.kind)){
@@ -1121,7 +1347,7 @@ el.tInput.addEventListener('input', () => {
 });
 function submitTyping(){
   if (!typing.active) return;
-  if (el.tInput.value.trim() === typing.target){ endTyping(true); return; }
+  if (el.tInput.value.trim().normalize('NFC') === typing.target){ endTyping(true); return; }
   el.panel.classList.remove('shake');
   void el.panel.offsetWidth;                       // 애니메이션 리셋
   el.panel.classList.add('shake');
@@ -1315,12 +1541,14 @@ window.__adv = advance;
 window.__tp = (x,y) => { player.x = x; player.y = y; return [player.x, player.y]; };
 window.__clock = t => { timeLeft = t; return timeLeft; };
 window.__dbg = () => ({state, wave, phase,
+  pack:{key:packKey, role:P.role, lang:P.lang, ascii:P.ascii, termK:P.termK, fixRead:P.fixRead},
+  lbTab:LBTABS[lbTab].n,
   player:{x:Math.round(player.x), y:Math.round(player.y), face:player.face, stun:+player.stun.toFixed(1)},
   keys:Object.keys(keys).filter(k=>keys[k]),
   npcs:npcs.map(n=>n.type+'@'+Math.round(n.x)+','+Math.round(n.y)),
   gaze:npcs.filter(n=>n.type==='boss').map(n=>({pts:n.keys.length, hold:+n.hold.toFixed(2),
        turn:+n.turn.toFixed(2), dir:+n.dir.toFixed(3)})),
-  typeSum, typeCnt, caught, score,
+  typeSum, typeCnt, caught, score, tasks:tasks.slice(), done:Object.assign({}, done),
   dish:{on:dish.active, prog:+dish.prog.toFixed(1), presses:dish.presses, held:dish.held, sec:+dish.elapsed.toFixed(1)},
   seed:seedLabel(), pid, nick, myDesk, deskPt:{x:POINTS.desk.x, y:POINTS.desk.y},
   errDesk, errPt:{x:POINTS.err.x, y:POINTS.err.y},
@@ -1341,9 +1569,10 @@ function pending(){
   }
   return out;
 }
-const DOING = {commit:'커밋 작성 중', laptop:'노트북 끄는 중', coffee:'커피 드는 중',
+const DOING_BASE = {commit:'커밋 작성 중', laptop:'노트북 끄는 중', coffee:'커피 드는 중',
                bag:'가방 챙기는 중', toilet:'화장실 다녀오는 중', error:'오류 고치는 중',
                dish:'설거지 하는 중'};
+const DOING = new Proxy({}, {get:(_,t) => P.doing[t] || DOING_BASE[t]});
 function standingOn(){
   for (const p of pending())
     if (Math.hypot(player.x-p.pt.x, player.y-p.pt.y) < p.pt.r) return p;
@@ -1360,7 +1589,7 @@ function complete(t){
   if (t === 'coffee' && !carry){ carry = true; SFX.pick(); flash('☕ 커피 들었다 — 쓰레기통까지'); return; }
   if (t === 'coffee') carry = false;          // 버렸으면 손에서 놓는다
   done[t] = true; SFX.pick();
-  flash(TASKS[t].icon + ' ' + TASKS[t].label + ' 완료');
+  flash(TASKS[t].icon + ' ' + tLabel(t) + ' 완료');
 }
 
 /* ============================ 업데이트 ============================ */
@@ -1420,10 +1649,10 @@ function update(dt){
       if (tgt.T.kind === 'type' || tgt.T.kind === 'fix'){
         if (typeCool <= 0){
           if (tgt.T.kind === 'fix'){
-            const b = (qsBug >= 0 && qsBug < BUGS.length)
-                    ? BUGS[qsBug] : BUGS[(rEvt()*BUGS.length)|0];
+            const b = (qsBug >= 0 && qsBug < P.bugs.length)
+                    ? P.bugs[qsBug] : P.bugs[(rEvt()*P.bugs.length)|0];
             startTyping('fix', b.fix, 0, b.err, b.bad, b.tok);
-          } else startTyping('term', COMMITS[(rEvt()*COMMITS.length)|0], 0);
+          } else startTyping('term', P.commits[(rEvt()*P.commits.length)|0], 0);
         }
       } else if (tgt.T.kind === 'dish'){
         if (typeCool <= 0) startDish();
@@ -1501,7 +1730,7 @@ function update(dt){
       const left = tasks.filter(t => !done[t]);
       if (!left.length){ phase = 'open'; SFX.ding(); flash('🛗 문이 열린다 — 탑승!'); }
       else if (msgT <= 0){
-        flash('⚠️ ' + TASKS[left[0]].label + ' 안 했잖아요!'); SFX.caught();
+        flash('⚠️ ' + tLabel(left[0]) + ' 안 했잖아요!'); SFX.caught();
       }
     }
   } else if (phase === 'open'){
@@ -1543,8 +1772,8 @@ function win(){
                    : '<div style="opacity:.45"><span>무적발 보너스 ('+caught+'번 들킴)</span><b>+0</b></div>')
     +   '<div class="sum"><span>누적 총점</span><b>'+fmt(score)+'</b></div>'
     + '</div>'
-    + (NEW_AT[wave+1] ? '<p class="newthing">다음 레벨의 변수 — '+NEW_AT[wave+1]+'</p>' : '')
-    + '<div class="tasklist">'+n.tasks.map(t=>'<span>'+TASKS[t].icon+' '+TASKS[t].label+'</span>').join('')+'</div>'
+    + (newAt(wave+1) ? '<p class="newthing">다음 레벨의 변수 — '+newAt(wave+1)+'</p>' : '')
+    + '<div class="tasklist">'+n.tasks.map(t=>'<span>'+TASKS[t].icon+' '+tLabel(t)+'</span>').join('')+'</div>'
     + '<p>LV.'+(wave+1)+' — 마감 <b style="color:var(--warn)">'+n.deadline+'초</b>'
     +   ' · 팀장 시선 <b style="color:var(--warn)">'+GAZE_NAME[n.gaze.idx]+'</b>(변곡점 '+n.gaze.keys.length+')'
     +   ' · 순회 동료 <b style="color:var(--warn)">'+n.walker+'명</b>'
@@ -1562,7 +1791,7 @@ function lose(){
   const left = tasks.filter(t => !done[t]);
   showOverlay('<div class="big">🌙</div><h2>야근 확정</h2>'
     + '<p>퇴근 마감 시간이 지났다. 오늘은 못 나간다.</p>'
-    + (left.length ? '<p>못 끝낸 일: '+left.map(t=>TASKS[t].icon+' '+TASKS[t].label).join(' · ')+'</p>'
+    + (left.length ? '<p>못 끝낸 일: '+left.map(t=>TASKS[t].icon+' '+tLabel(t)).join(' · ')+'</p>'
                    : '<p>준비는 다 했는데... 엘베 앞까지 못 갔다.</p>')
     + '<div class="brk">'
     +   '<div><span>도달 레벨</span><b>LV.'+wave+'</b></div>'
@@ -1826,8 +2055,8 @@ function syncHUD(){
     const T2 = TASKS[t], d = done[t];
     const locked = !!(T2.after && tasks.includes(T2.after) && !done[T2.after]);
     const carrying = (t === 'coffee' && carry);
-    const where = d ? '완료' : locked ? 'git commit 먼저' : LOC[carrying ? T2.to : T2.at];
-    const label = carrying ? '커피 버리기' : T2.label;
+    const where = d ? '완료' : locked ? tLabel('commit') + ' 먼저' : LOC[carrying ? T2.to : T2.at];
+    const label = carrying ? '커피 버리기' : tLabel(t);
     const cls = d ? 'done' : locked ? 'lock' : (here && here.t === t) ? 'active' : '';
     return '<li class="'+cls+'"><span class="mark">'+(d?'✅':locked?'🔒':'⬜')+'</span>'
          + '<span class="ico">'+T2.icon+'</span>'
@@ -1839,8 +2068,8 @@ function syncHUD(){
   if (dish.active){
     label = '🧽 설거지 중 — ENTER 연타!'; idle = false; pct = dish.prog;
   } else if (typing.active){
-    label = typing.kind === 'term' ? '⌨️ 커밋 메시지 입력 중'
-          : typing.kind === 'fix'   ? '🚨 코드 오류 수정 중'
+    label = typing.kind === 'term' ? '⌨️ ' + DOING.commit
+          : typing.kind === 'fix'   ? '🚨 ' + DOING.error
                                     : '💬 슬랙 답장 입력 중';
     idle = false;
     pct = typing.limit > 0 ? Math.max(0, typing.left/typing.limit)*100 : 100;
@@ -1854,7 +2083,7 @@ function syncHUD(){
       idle = false; pct = Math.min(1, holdT / p.need) * 100;
     }
   } else if (here){
-    label = here.locked ? '🔒 git commit 먼저' : '👉 가만히 서 있으면 시작';
+    label = here.locked ? '🔒 ' + tLabel('commit') + ' 먼저' : '👉 가만히 서 있으면 시작';
     idle = false;
   }
   el.actLabel.textContent = label;
@@ -1889,6 +2118,24 @@ function syncHUD(){
   } else { el.timer.textContent = '⏰ 마감'; el.timer.className = 'urgent'; }
 }
 
+/* 직군·언어 선택 — 타이틀에서만 바꿀 수 있다.
+   맵·마감시간·NPC 는 전 팩 공통이라 같은 시드면 어느 팩에서든 같은 배치가 나온다. */
+function packPickerHTML(){
+  const chip = k => {
+    const q = PACKS[k];
+    return '<button' + (k === packKey ? ' class="on"' : '')
+      + ' onclick="window.__setPack(\'' + k + '\')">'
+      + '<i>' + q.icon + '</i><span>' + esc(q.langName)
+      + '<br><s>' + esc(q.roleName) + '</s></span></button>';
+  };
+  return '<p class="packrow">⌨️ 커밋 · 🚨 오류수정을 어떤 일로 할까</p>'
+    + '<div class="packs">' + PACK_KEYS.map(chip).join('') + '</div>'
+    + '<p class="lbnote">'
+    + (P.ascii ? '코드 미션 — 콘솔 에러를 보고 오타 한 곳을 고친다 (영문 입력)'
+               : '정책 미션 — 제보를 보고 정책 문장 한 곳을 고친다 (한글 입력)')
+    + '</p>';
+}
+
 function showOverlay(html){ el.card.innerHTML = html; el.overlay.style.display = 'flex'; }
 function hideOverlay(){ el.overlay.style.display = 'none'; }
 
@@ -1911,8 +2158,9 @@ function title(){
     + '<p style="font-size:12.5px">👔 팀장의 시선은 <b style="color:var(--warn)">정해진 패턴</b>으로만 움직인다. '
     + '리듬을 읽고 화분·책장 뒤로 붙어서 지나가라.</p>'
     + '<p style="font-size:12.5px">레벨마다 할 일이 하나씩 늘어난다 — '
-    + '💻노트북 · 🎒가방 · ⌨️커밋 · ☕커피 · 🚻화장실 · 🚨오류수정 · 🧽설거지<br>'
+    + '💻노트북 · 🎒가방 · ⌨️' + tLabel('commit') + ' · ☕커피 · 🚻화장실 · 🚨' + tLabel('error') + ' · 🧽설거지<br>'
     + '🖥️ <b style="color:#5ee1a0">초록</b> 모니터가 내 자리, <b style="color:#ff5f6d">빨간</b> 모니터는 장애 발생 — 매 레벨 위치가 바뀐다.</p>'
+    + packPickerHTML()
     + '<button class="btn" onclick="window.__adv()">LV.1 시작 (Space)</button>'
     + lbBlock('🏆 순위표'));
   refreshBoard();
