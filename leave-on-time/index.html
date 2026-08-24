@@ -90,6 +90,36 @@
   .lbtabs button:hover{color:var(--ink)}
   .lbtabs button.on{border-color:var(--accent);color:var(--accent);font-weight:700}
 
+  /* 장비창 */
+  #look{
+    position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:30;
+    width:560px;max-width:94%;max-height:90%;display:none;flex-direction:column;
+    background:#141821;border:1px solid #2c3444;border-radius:14px;overflow:hidden;
+    box-shadow:0 24px 60px rgba(0,0,0,.7);line-height:1.5;text-align:left;
+  }
+  #look .ahead{display:flex;align-items:center;gap:8px;padding:11px 14px;font-size:13px;
+    font-weight:800;background:#1b2433;color:#cfe0ff}
+  #look .ahead button{margin-left:auto;background:#232c3d;border:1px solid #303a4e;color:#9aa3b4;
+    border-radius:6px;padding:3px 9px;font-size:11.5px;cursor:pointer;font-family:inherit}
+  #look .ahead button:hover{color:#fff}
+  #look .lbody{display:flex;gap:14px;padding:14px;overflow-y:auto}
+  #look .lprev{flex:0 0 auto;display:flex;flex-direction:column;align-items:center;gap:6px}
+  #look .lprev canvas{background:#0b0f16;border:1px solid #2c3444;border-radius:10px;
+    image-rendering:pixelated;display:block}
+  #look .lprev span{font-size:11px;color:#69728a}
+  #look .lslots{flex:1;min-width:0;display:flex;flex-direction:column;gap:9px}
+  #look .slot{display:flex;align-items:center;gap:8px}
+  #look .slot .nm{flex:0 0 34px;font-size:12px;color:#9aa3b4;font-weight:700}
+  #look .sw{display:flex;gap:4px;flex-wrap:wrap}
+  #look .sw button{width:20px;height:20px;padding:0;border-radius:5px;cursor:pointer;
+    border:1px solid rgba(0,0,0,.5);position:relative}
+  #look .sw button.on{outline:2px solid var(--accent);outline-offset:1px}
+  #look .lfoot{display:flex;align-items:center;gap:10px;padding:10px 14px;
+    border-top:1px solid #262f40;background:#111621;font-size:11.5px;color:#5f687d}
+  #look .lfoot button{background:#232c3d;border:1px solid #303a4e;color:#9aa3b4;border-radius:6px;
+    padding:4px 10px;font-size:11.5px;cursor:pointer;font-family:inherit}
+  #look .lfoot button:hover{color:#fff;border-color:var(--accent)}
+
   .lbh{margin:18px 0 8px;font-size:11px;letter-spacing:.08em;color:#7b8497;font-weight:800;text-transform:uppercase}
   table.lb{width:100%;max-width:400px;margin:0 auto;border-collapse:collapse;font-size:13px}
   table.lb td{padding:5px 8px;border-bottom:1px solid rgba(255,255,255,.06);color:var(--dim)}
@@ -291,6 +321,18 @@
       </div>
     </div>
 
+    <div id="look">
+      <div class="ahead"><span>👕</span><span>내 장비</span>
+        <button onclick="window.__look(0)">닫기</button></div>
+      <div class="lbody">
+        <div class="lprev"><canvas id="lookcv" width="192" height="192"></canvas>
+          <span id="lookName"></span></div>
+        <div class="lslots" id="lookSlots"></div>
+      </div>
+      <div class="lfoot"><button onclick="window.__lookReset()">기본으로</button>
+        <span>색만 바꾸는 단계다 — 모자·상점은 다음</span></div>
+    </div>
+
     <div class="overlay" id="overlay"><div class="card" id="card"></div></div>
   </div>
   </div><!-- /gamecol -->
@@ -351,6 +393,8 @@ const el = {
   tTime:document.getElementById('tTime'),
   anon:document.getElementById('anon'), anonList:document.getElementById('anonList'),
   anonInput:document.getElementById('anonInput'), anonCount:document.getElementById('anonCount'),
+  look:document.getElementById('look'), lookcv:document.getElementById('lookcv'),
+  lookSlots:document.getElementById('lookSlots'), lookName:document.getElementById('lookName'),
   dish:document.getElementById('dish'), dishBar:document.getElementById('dishBar'),
   dishMsg:document.getElementById('dishMsg'), dishTime:document.getElementById('dishTime'),
 };
@@ -379,6 +423,7 @@ for (const k in SRC){
   const settle = () => {
     if (nDone + nFail < nTotal) return;
     assetsReady = true;
+    buildLook();                 // 합성 시트를 먼저 굽는다
     if (state === 'loading') boot();
   };
   im.onload  = () => { nDone++; settle(); };
@@ -386,7 +431,13 @@ for (const k in SRC){
   im.src = SRC[k];
   IMG[k] = im;
 }
-const has = n => { const i = IMG[n]; return i && i.complete && i.naturalWidth > 0; };
+/* IMG 에는 <img> 와 오프스크린 <canvas>(합성한 캐릭터 시트)가 섞여 들어온다.
+   canvas 는 complete/naturalWidth 가 없으므로 따로 판정한다. */
+const has = n => {
+  const i = IMG[n];
+  if (!i) return false;
+  return i.tagName === 'CANVAS' ? i.width > 0 : (i.complete && i.naturalWidth > 0);
+};
 function spr(n, x, y, w, h){
   if (has(n)) ctx.drawImage(IMG[n], Math.round(x), Math.round(y), w, h);
   else { ctx.fillStyle = '#4a5470'; ctx.fillRect(x, y, w, h); }
@@ -884,6 +935,144 @@ function pickDesks(){
   set('desk', myDesk);   // 책상 앞(아래) 통로
   set('err',  errDesk);
   set('cup',  cupDesk);
+}
+
+/* ============================ 캐릭터 외형 ============================
+   플레이어 스프라이트(ch1)의 부위별 색을 치환해서 합성 시트를 만든다.
+
+   왜 합성해서 캐시하는가 — 레이어를 매 프레임 겹쳐 그리면 화면의 캐릭터 수만큼 비용이 붙는다.
+   외형이 바뀔 때 한 번만 구워서 IMG.me 에 넣으면 drawChar() 는 지금처럼 drawImage 한 번이다.
+
+   왜 ch1 을 직접 안 고치는가 — 순회 동료가 ch1/ch2 를 쓴다(buildMap 참고).
+   원본을 건드리면 동료들도 같이 옷이 바뀐다.
+
+   부위 색은 실측한 것이다. src 는 반드시 **어두운 톤 → 밝은 톤** 순서.
+   아웃라인 #2e222f 은 전 부위가 공유하므로 절대 넣지 말 것 — 넣으면 실루엣이 무너진다. */
+const LOOK_PARTS = {
+  hair : {label:'헤어', src:['3e3546','625565','7f708a']},
+  shirt: {label:'상의', src:['6e2727','b33831','fb6b1d']},
+  coat : {label:'재킷', src:['0b8a8f','0eaf9b']},
+  pants: {label:'하의', src:['4d65b4','4d9be6']},
+  shoes: {label:'신발', src:['45293f','753c54']},
+};
+/* 색 후보 — 게임 원본 팔레트(27색) 계열에서 고른 3톤 램프. 어두운 → 밝은 순.
+   2톤 부위는 램프의 [0], [2] 만 쓴다. */
+const RAMPS = [
+  {n:'검정', c:['1a1620','2e222f','3e3546']},
+  {n:'회색', c:['3e3546','625565','7f708a']},
+  {n:'흰색', c:['9babb2','c7dcd0','ffffff']},
+  {n:'남색', c:['232647','323353','484a77']},
+  {n:'파랑', c:['2e4a8a','4d65b4','4d9be6']},
+  {n:'청록', c:['075c58','0b8a8f','0eaf9b']},
+  {n:'초록', c:['165a4c','1a8a5c','3fbf7f']},
+  {n:'빨강', c:['6e2727','b33831','e83b3b']},
+  {n:'주황', c:['b33831','f79617','fb6b1d']},
+  {n:'노랑', c:['b06a10','e0a020','f9c22b']},
+  {n:'갈색', c:['753c54','cd683d','e6904e']},
+  {n:'분홍', c:['b33831','f68181','fdcbb0']},
+  {n:'보라', c:['3e2547','6b3a7a','9b5fb0']},
+];
+const LOOK_KEYS = Object.keys(LOOK_PARTS);
+const LOOK_DEFAULT = {hair:1, shirt:8, coat:5, pants:4, shoes:0};
+let look = (() => {
+  try{
+    const v = JSON.parse(localStorage.getItem('lot.look') || 'null');
+    if (v && typeof v === 'object'){
+      const o = Object.assign({}, LOOK_DEFAULT);
+      for (const k of LOOK_KEYS)
+        if (Number.isInteger(v[k]) && v[k] >= 0 && v[k] < RAMPS.length) o[k] = v[k];
+      return o;
+    }
+  }catch(e){}
+  return Object.assign({}, LOOK_DEFAULT);
+})();
+function saveLook(){ localStorage.setItem('lot.look', JSON.stringify(look)); }
+
+const rgb = h => [parseInt(h.slice(0,2),16), parseInt(h.slice(2,4),16), parseInt(h.slice(4,6),16)];
+/* 외형이 바뀔 때만 호출. 192x192 = 36,864px 루프라 한 번은 싸다. */
+function buildLook(){
+  if (!has('ch1')) return;
+  const src = IMG.ch1, w = src.naturalWidth, h = src.naturalHeight;
+  const cv2 = document.createElement('canvas');
+  cv2.width = w; cv2.height = h;
+  const c2 = cv2.getContext('2d', {willReadFrequently:true});
+  c2.imageSmoothingEnabled = false;
+  c2.drawImage(src, 0, 0);
+  // 원본색 -> 새색. 3톤 부위는 그대로, 2톤 부위는 램프의 양끝만 쓴다.
+  const map = new Map();
+  for (const k of LOOK_KEYS){
+    const part = LOOK_PARTS[k], ramp = RAMPS[look[k]].c;
+    part.src.forEach((from, i) => {
+      const to = part.src.length >= 3 ? ramp[i] : ramp[i === 0 ? 0 : 2];
+      map.set(from, rgb(to));
+    });
+  }
+  const d = c2.getImageData(0, 0, w, h), a = d.data;
+  const hex2 = v => v.toString(16).padStart(2,'0');
+  for (let i = 0; i < a.length; i += 4){
+    if (a[i+3] === 0) continue;
+    const key = hex2(a[i]) + hex2(a[i+1]) + hex2(a[i+2]);
+    const to = map.get(key);
+    if (to){ a[i] = to[0]; a[i+1] = to[1]; a[i+2] = to[2]; }
+  }
+  c2.putImageData(d, 0, 0);
+  IMG.me = cv2;
+}
+const meKey = () => has('me') ? 'me' : 'ch1';
+
+/* ── 장비창 ──
+   스와치는 열 때 한 번만 그리고 이후엔 class 만 토글한다.
+   매번 innerHTML 을 다시 쓰면 눌린 버튼이 사라져서 브라우저가 click 을 안 쏜다
+   (setHTML 주석 참고). */
+let lookOpen = false, lookT = 0;
+window.__look = open => {
+  if (open && state === 'playing') return;      // 플레이 중에는 못 연다
+  lookOpen = !!open;
+  el.look.style.display = lookOpen ? 'flex' : 'none';
+  if (lookOpen){
+    for (const k in keys) keys[k] = false;    // 누르고 있던 이동키가 걸린 채 남지 않게
+    renderLookSlots(); lookT = 0;
+  }
+};
+window.__lookPick = (part, i) => {
+  if (!LOOK_PARTS[part] || !RAMPS[i]) return;
+  look[part] = i; saveLook(); buildLook();
+  const host = document.querySelector('#lookSlots [data-part="' + part + '"]');
+  if (host) [...host.children].forEach((b, j) => { b.className = j === i ? 'on' : ''; });
+  if (el.lookName) el.lookName.textContent = lookSummary();
+};
+window.__lookReset = () => {
+  look = Object.assign({}, LOOK_DEFAULT);
+  saveLook(); buildLook(); renderLookSlots();
+};
+const lookSummary = () => LOOK_KEYS.map(k => RAMPS[look[k]].n).join(' · ');
+function renderLookSlots(){
+  el.lookSlots.innerHTML = LOOK_KEYS.map(k =>
+    '<div class="slot"><span class="nm">' + esc(LOOK_PARTS[k].label) + '</span>'
+    + '<span class="sw" data-part="' + k + '">'
+    + RAMPS.map((r, i) =>
+        '<button' + (look[k] === i ? ' class="on"' : '') + ' title="' + esc(r.n) + '"'
+        + ' style="background:#' + r.c[1] + '"'
+        + ' onclick="window.__lookPick(\'' + k + '\',' + i + ')"></button>').join('')
+    + '</span></div>').join('');
+  if (el.lookName) el.lookName.textContent = lookSummary();
+}
+/* 미리보기 — 걷는 모습을 6배로. 옷이 실제로 어떻게 보이는지는 움직여봐야 안다. */
+function drawLookPreview(dt){
+  const g = el.lookcv.getContext('2d');
+  g.imageSmoothingEnabled = false;
+  g.clearRect(0, 0, 192, 192);
+  if (!has(meKey())) return;
+  lookT += dt;
+  const rows = [1, 3, 5];                                  // 걷기 하 / 측 / 위
+  const row = rows[Math.floor(lookT / 1.6) % 3];
+  const f = Math.floor(lookT * 9) % 6;
+  // 게임에서는 2배(64px)로 그리며 발이 y, 원점이 (-32,-56) 이다. 4배는 그 두 배.
+  const Z = 4, S = 32*Z, cx = 96, cy = 150;
+  g.globalAlpha = .25; g.fillStyle = '#000';
+  g.beginPath(); g.ellipse(cx, cy, 26, 9, 0, 0, 7); g.fill();
+  g.globalAlpha = 1;
+  g.drawImage(IMG[meKey()], f*32, row*32, 32, 32, cx - S/2, cy - 56*(Z/2), S, S);
 }
 
 /* ============================ 퇴근 체크리스트 ============================ */
@@ -1511,6 +1700,13 @@ addEventListener('keydown', e => {
     } else if (c === 'Escape' || e.key === 'Escape') endDish(false);
     return;
   }
+  /* 장비창은 입력칸이 없어서 키가 그대로 게임으로 샌다.
+     막지 않으면 타이틀에서 장비창을 열어둔 채 Space 를 누르면 판이 시작된다. */
+  if (lookOpen){
+    if (c === 'Escape' || e.key === 'Escape'){ window.__look(0); return; }
+    if (PREVENT.indexOf(c) >= 0) e.preventDefault();
+    return;
+  }
   if (typing.active) return;
   if (PREVENT.indexOf(c) >= 0) e.preventDefault();
   keys[c] = true;
@@ -1932,7 +2128,7 @@ function render(){
   actors.sort((a,b) => a.y - b.y);
   for (const a of actors){
     if (a.p){
-      drawChar('ch1', player.x, player.y, player.face,
+      drawChar(meKey(), player.x, player.y, player.face,
                player.moving && player.stun<=0 && !typing.active, player.anim, player.flip);
       if (carry) spr('mug', player.x + (player.flip ? -26 : 6), player.y - 34, 26, 26);
       if (player.sneaking && player.stun<=0 && !typing.active){
@@ -2036,7 +2232,10 @@ function syncHUD(){
   el.best.textContent = bestLv ? '🏆 최고 LV.' + bestLv + ' · ' + fmt(bestScore) + '점' : '';
   if (!nickEditing)
     setHTML(el.nick, 'nick',
-        '<button class="board" onclick="window.__board(1)"'
+        '<button class="board" onclick="window.__look(1)"'
+      + (state === 'playing' ? ' disabled title="게임이 끝난 뒤에 열 수 있다"' : ' title="캐릭터 외형"')
+      + '>👕 장비</button>'
+      + '<button class="board" onclick="window.__board(1)"'
       + (state === 'playing' ? ' disabled title="게임이 끝난 뒤에 열 수 있다"' : ' title="익명게시판"')
       + '>💬 게시판</button>'
       + '나는 <b>' + esc(nick) + '</b>'
@@ -2176,6 +2375,7 @@ function loop(now){
   } else { update(dt); syncHUD(); }
   render();
   if (dish.active) drawDish();
+  if (lookOpen) drawLookPreview(dt);
   requestAnimationFrame(loop);
 }
 const QS = new URLSearchParams(location.search);
@@ -2184,6 +2384,7 @@ const qsGoto = (QS.get('goto') || '').toLowerCase();   // err | desk | locker | 
 const qsBug  = QS.has('bug') ? parseInt(QS.get('bug'), 10) : -1;
 const qsSeed = QS.get('seed');                          // ?seed=abc — 같은 배치 재현
 function boot(){
+  buildLook();                 // 애셋이 캐시에서 즉시 온 경우까지 보장 (멱등)
   newRunSeed();
   if (qsDay >= 1 && qsDay <= 99){ wave = qsDay; skipped = qsDay > 1; startWave(wave); }
   else title();

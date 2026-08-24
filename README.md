@@ -12,6 +12,7 @@
 | [`CLAUDE.md`](CLAUDE.md) | 작업 규약 — 배포 절차, 테스트 함정, 깨뜨리면 안 되는 불변식 |
 | [`ARCHITECTURE.md`](ARCHITECTURE.md) | 설계 — 좌표계, 레벨/점수 테이블, 신원 모델, API, 로드맵 |
 | [`leaderboard-worker/DEPLOY.md`](leaderboard-worker/DEPLOY.md) | 순위표 서버 배포와 마이그레이션 |
+| [`ITEMS-DESIGN.md`](ITEMS-DESIGN.md) | **미구현** — 아이템·캐릭터 설정 설계안과 밸런스 계산 |
 
 ## 플레이
 
@@ -21,6 +22,7 @@
 | `Shift` (홀드) | 살금살금 — 조용하고 들킴 게이지가 절반 속도로 찬다 |
 | 할 일 지점에서 가만히 | 처리 시작 |
 | 타이핑 후 `Enter` | 슬랙 답장 / git commit 전송 |
+| 헤더 `👕 장비` | 캐릭터 색 바꾸기 (헤어·상의·재킷·하의·신발) |
 | `M` | 음소거 |
 | `R` | 현재 레벨 재시작 |
 
