@@ -121,6 +121,12 @@
   #look .ocard.on{border-color:var(--accent);color:var(--ink);background:#16241d;font-weight:700}
   #look .ocard img,#look .ocard .ph{width:44px;height:44px;image-rendering:pixelated;display:block}
   #look .lslots{display:flex;flex-direction:column;gap:9px}
+  #look .lnote{font-size:12.5px;color:#8f99ab;background:#1a2029;border:1px solid var(--line);
+    border-radius:10px;padding:14px;line-height:1.6}
+  #look .lnote b{color:var(--accent)}
+  #look .lnote button{display:block;margin-top:10px;background:#232c3d;border:1px solid #303a4e;
+    color:#cfe0ff;border-radius:8px;padding:7px 12px;font-size:12px;cursor:pointer;font-family:inherit}
+  #look .lnote button:hover{border-color:var(--accent);color:#fff}
   #look .slot{display:flex;align-items:center;gap:8px}
   #look .slot .nm{flex:0 0 34px;font-size:12px;color:#9aa3b4;font-weight:700}
   #look .sw{display:flex;gap:4px;flex-wrap:wrap}
@@ -1008,10 +1014,13 @@ const OUTFITS = [
   {id:'rookie',  n:'신입 열정',    look:{hair:0,  shirt:7,  coat:7,  pants:3,  shoes:0}},
   {id:'purple',  n:'컬리 퍼플',    look:{hair:0,  shirt:2,  coat:12, pants:12, shoes:0}},
 ];
-const LOOK_DEFAULT = OUTFITS[0].look;      // '기본 출근복' 이 곧 기본값이다
-let look = (() => {
+/* 의상 9종은 **고정 프리셋**이다 — 이름과 정체성이 있고 나중에 세트 효과가 붙는다.
+   색을 직접 만질 수 있는 건 '기본 출근복' 하나뿐이고, 그 색이 baseLook 이다.
+   이렇게 하면 프리셋이 흐려지지 않으면서 배색 기능도 남는다. */
+const LOOK_DEFAULT = OUTFITS[0].look;
+const readLook = key => {
   try{
-    const v = JSON.parse(localStorage.getItem('lot.look') || 'null');
+    const v = JSON.parse(localStorage.getItem(key) || 'null');
     if (v && typeof v === 'object'){
       const o = Object.assign({}, LOOK_DEFAULT);
       for (const k of LOOK_KEYS)
@@ -1019,19 +1028,22 @@ let look = (() => {
       return o;
     }
   }catch(e){}
-  return Object.assign({}, LOOK_DEFAULT);
-})();
+  return null;
+};
+// lot.look 은 의상 도입 전 키다. 있으면 기본 출근복의 배색으로 이관한다.
+let baseLook = readLook('lot.baseLook') || readLook('lot.look') || Object.assign({}, LOOK_DEFAULT);
+const outfitLook = o => o.id === 'default' ? baseLook : o.look;
+let look = Object.assign({}, baseLook);
 /* 라벨은 저장값을 믿지 않고 look 에서 다시 유도한다.
    의상 개념이 없던 판(색만 저장)에서 넘어온 기록도 이러면 이름이 맞는다. */
-let outfitId = (() => {
-  const m = OUTFITS.find(o => LOOK_KEYS.every(k => o.look[k] === look[k]));
-  return m ? m.id : 'custom';
-})();
+let outfitId = localStorage.getItem('lot.outfit') || 'default';
+if (!OUTFITS.some(o => o.id === outfitId)) outfitId = 'default';   // 'custom' 등 옛 값 흡수
+look = Object.assign({}, outfitLook(OUTFITS.find(o => o.id === outfitId)));
 function saveLook(){
-  localStorage.setItem('lot.look', JSON.stringify(look));
+  localStorage.setItem('lot.baseLook', JSON.stringify(baseLook));
   localStorage.setItem('lot.outfit', outfitId);
 }
-const outfitName = () => (OUTFITS.find(o => o.id === outfitId) || {n:'직접 배색'}).n;
+const outfitName = () => (OUTFITS.find(o => o.id === outfitId) || OUTFITS[0]).n;
 
 const rgb = h => [parseInt(h.slice(0,2),16), parseInt(h.slice(2,4),16), parseInt(h.slice(4,6),16)];
 /* 외형이 바뀔 때만 호출. 192x192 = 36,864px 루프라 한 번은 싸다. */
@@ -1076,7 +1088,7 @@ function outfitThumb(o){
   g.drawImage(IMG.ch1, 0, 0, 32, 32, 0, 0, 32, 32);
   const map = new Map();
   for (const k of LOOK_KEYS){
-    const part = LOOK_PARTS[k], ramp = RAMPS[o.look[k]].c;
+    const part = LOOK_PARTS[k], ramp = RAMPS[outfitLook(o)[k]].c;
     part.src.forEach((from, i) => {
       map.set(from, rgb(part.src.length >= 3 ? ramp[i] : ramp[i === 0 ? 0 : 2]));
     });
@@ -1117,29 +1129,34 @@ window.__wear = id => {
   const o = OUTFITS.find(x => x.id === id);
   if (!o) return;
   outfitId = id;
-  look = Object.assign({}, o.look);
+  look = Object.assign({}, outfitLook(o));
   saveLook(); buildLook();
-  [...el.lookPane.querySelectorAll('.ocard')].forEach(c => {
-    c.className = 'ocard' + (c.dataset.id === id ? ' on' : '');
-  });
-  syncLookLabels();
+  if (lookTab === 0){
+    [...el.lookPane.querySelectorAll('.ocard')].forEach(c => {
+      c.className = 'ocard' + (c.dataset.id === id ? ' on' : '');
+    });
+    syncLookLabels();
+  } else renderLookPane();      // 배색 탭은 안내 <-> 스와치 로 내용이 바뀐다
 };
-/* 직접 배색 — 프리셋에서 벗어나면 '직접 배색' 으로 표시가 바뀐다. */
+/* 직접 배색 — '기본 출근복' 을 입고 있을 때만 가능하다. 프리셋 9종은 고정이다. */
 window.__lookPick = (part, i) => {
+  if (outfitId !== 'default') return;
   if (!LOOK_PARTS[part] || !RAMPS[i]) return;
-  look[part] = i;
-  const match = OUTFITS.find(o => LOOK_KEYS.every(k => o.look[k] === look[k]));
-  outfitId = match ? match.id : 'custom';
+  baseLook[part] = i; look[part] = i;
+  delete thumbCache.default;                  // 기본 출근복 카드 썸네일을 다시 굽는다
   saveLook(); buildLook();
   const host = el.lookPane.querySelector('[data-part="' + part + '"]');
   if (host) [...host.children].forEach((b, j) => { b.className = j === i ? 'on' : ''; });
   syncLookLabels();
 };
+window.__wearBase = () => { window.__wear('default'); window.__lookTab(1); };
 function syncLookLabels(){
   if (el.lookName) el.lookName.textContent = outfitName();
   if (el.lookFoot) el.lookFoot.textContent = lookTab === 0
     ? '보유 의상 ' + OUTFITS.length + '종 — 지금은 전부 착용 가능하다 (상점은 다음 단계)'
-    : LOOK_KEYS.map(k => LOOK_PARTS[k].label + ' ' + RAMPS[look[k]].n).join(' · ');
+    : outfitId === 'default'
+      ? LOOK_KEYS.map(k => LOOK_PARTS[k].label + ' ' + RAMPS[look[k]].n).join(' · ')
+      : '기본 출근복에서만 배색할 수 있다';
 }
 function renderLookPane(){
   el.lookPane.innerHTML = lookTab === 0 ? outfitCardsHTML() : swatchHTML();
@@ -1155,6 +1172,10 @@ function outfitCardsHTML(){
   }).join('') + '</div>';
 }
 function swatchHTML(){
+  if (outfitId !== 'default')
+    return '<div class="lnote">🎨 배색은 <b>기본 출근복</b>에서만 바꿀 수 있다.<br>'
+      + '나머지 의상은 정해진 옷이다.'
+      + '<button onclick="window.__wearBase()">기본 출근복으로 갈아입기</button></div>';
   return '<div class="lslots">' + LOOK_KEYS.map(k =>
     '<div class="slot"><span class="nm">' + esc(LOOK_PARTS[k].label) + '</span>'
     + '<span class="sw" data-part="' + k + '">'
@@ -1845,6 +1866,7 @@ window.__tp = (x,y) => { player.x = x; player.y = y; return [player.x, player.y]
 window.__clock = t => { timeLeft = t; return timeLeft; };
 window.__dbg = () => ({state, wave, phase,
   pack:{key:packKey, role:P.role, lang:P.lang, ascii:P.ascii, termK:P.termK, fixRead:P.fixRead},
+  outfit:{id:outfitId, look:Object.assign({}, look), base:Object.assign({}, baseLook), me:has('me')},
   lbTab:LBTABS[lbTab].n,
   player:{x:Math.round(player.x), y:Math.round(player.y), face:player.face, stun:+player.stun.toFixed(1)},
   keys:Object.keys(keys).filter(k=>keys[k]),
