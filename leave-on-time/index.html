@@ -107,7 +107,20 @@
   #look .lprev canvas{background:#0b0f16;border:1px solid #2c3444;border-radius:10px;
     image-rendering:pixelated;display:block}
   #look .lprev span{font-size:11px;color:#69728a}
-  #look .lslots{flex:1;min-width:0;display:flex;flex-direction:column;gap:9px}
+  #look .lright{flex:1;min-width:0;display:flex;flex-direction:column;gap:10px}
+  #look .ltabs{display:flex;gap:5px}
+  #look .ltabs button{background:#202634;border:1px solid var(--line);color:#7b8497;
+    border-radius:999px;padding:4px 12px;font-size:11.5px;cursor:pointer;font-family:inherit}
+  #look .ltabs button:hover{color:var(--ink)}
+  #look .ltabs button.on{border-color:var(--accent);color:var(--accent);font-weight:700}
+  #look .ocards{display:grid;grid-template-columns:repeat(auto-fill,minmax(74px,1fr));gap:7px}
+  #look .ocard{display:flex;flex-direction:column;align-items:center;gap:3px;padding:6px 3px 5px;
+    background:#1a2029;border:1px solid var(--line);border-radius:9px;cursor:pointer;
+    font-family:inherit;font-size:10.5px;color:#8f99ab;line-height:1.25;text-align:center}
+  #look .ocard:hover{border-color:#4a5470;color:var(--ink)}
+  #look .ocard.on{border-color:var(--accent);color:var(--ink);background:#16241d;font-weight:700}
+  #look .ocard img,#look .ocard .ph{width:44px;height:44px;image-rendering:pixelated;display:block}
+  #look .lslots{display:flex;flex-direction:column;gap:9px}
   #look .slot{display:flex;align-items:center;gap:8px}
   #look .slot .nm{flex:0 0 34px;font-size:12px;color:#9aa3b4;font-weight:700}
   #look .sw{display:flex;gap:4px;flex-wrap:wrap}
@@ -327,10 +340,15 @@
       <div class="lbody">
         <div class="lprev"><canvas id="lookcv" width="192" height="192"></canvas>
           <span id="lookName"></span></div>
-        <div class="lslots" id="lookSlots"></div>
+        <div class="lright">
+          <div class="ltabs" id="lookTabs">
+            <button class="on" onclick="window.__lookTab(0)">👔 의상</button>
+            <button onclick="window.__lookTab(1)">🎨 직접 배색</button>
+          </div>
+          <div id="lookPane"></div>
+        </div>
       </div>
-      <div class="lfoot"><button onclick="window.__lookReset()">기본으로</button>
-        <span>색만 바꾸는 단계다 — 모자·상점은 다음</span></div>
+      <div class="lfoot"><span id="lookFoot"></span></div>
     </div>
 
     <div class="overlay" id="overlay"><div class="card" id="card"></div></div>
@@ -394,7 +412,8 @@ const el = {
   anon:document.getElementById('anon'), anonList:document.getElementById('anonList'),
   anonInput:document.getElementById('anonInput'), anonCount:document.getElementById('anonCount'),
   look:document.getElementById('look'), lookcv:document.getElementById('lookcv'),
-  lookSlots:document.getElementById('lookSlots'), lookName:document.getElementById('lookName'),
+  lookPane:document.getElementById('lookPane'), lookName:document.getElementById('lookName'),
+  lookTabs:document.getElementById('lookTabs'), lookFoot:document.getElementById('lookFoot'),
   dish:document.getElementById('dish'), dishBar:document.getElementById('dishBar'),
   dishMsg:document.getElementById('dishMsg'), dishTime:document.getElementById('dishTime'),
 };
@@ -973,7 +992,23 @@ const RAMPS = [
   {n:'보라', c:['3e2547','6b3a7a','9b5fb0']},
 ];
 const LOOK_KEYS = Object.keys(LOOK_PARTS);
-const LOOK_DEFAULT = {hair:1, shirt:8, coat:5, pants:4, shoes:0};
+/* 의상 — 램프 인덱스 조합에 이름을 붙인 것. 이게 '갖고 있는 아이템' 단위다.
+   나중에 세트 효과(정장 → 임원 위장 등)를 붙일 단위와 그대로 일치한다. ITEMS-DESIGN.md 참고.
+   색 조합은 눈으로 확인해서 서로 구분되는 것만 남겼다 —
+   특히 재킷이 가장 넓은 면적이라 재킷 색이 겹치면 다른 옷으로 안 보인다. */
+const OUTFITS = [
+  {id:'default', n:'기본 출근복',  look:{hair:1,  shirt:8,  coat:5,  pants:4,  shoes:0}},
+  {id:'suit',    n:'정장',        look:{hair:1,  shirt:2,  coat:3,  pants:3,  shoes:0}},
+  {id:'goth',    n:'고어룩',      look:{hair:0,  shirt:0,  coat:0,  pants:0,  shoes:0}},
+  {id:'hoodie',  n:'개발자 후드',  look:{hair:1,  shirt:0,  coat:1,  pants:0,  shoes:2}},
+  {id:'vest',    n:'물류 조끼',    look:{hair:0,  shirt:4,  coat:9,  pants:3,  shoes:0}},
+  {id:'lab',     n:'연구원 가운',  look:{hair:1,  shirt:5,  coat:2,  pants:2,  shoes:0}},
+  {id:'vacay',   n:'휴가룩',      look:{hair:9,  shirt:2,  coat:11, pants:10, shoes:2}},
+  {id:'zombie',  n:'야근 좀비',    look:{hair:1,  shirt:6,  coat:0,  pants:0,  shoes:0}},
+  {id:'rookie',  n:'신입 열정',    look:{hair:0,  shirt:7,  coat:7,  pants:3,  shoes:0}},
+  {id:'purple',  n:'컬리 퍼플',    look:{hair:0,  shirt:2,  coat:12, pants:12, shoes:0}},
+];
+const LOOK_DEFAULT = OUTFITS[0].look;      // '기본 출근복' 이 곧 기본값이다
 let look = (() => {
   try{
     const v = JSON.parse(localStorage.getItem('lot.look') || 'null');
@@ -986,7 +1021,17 @@ let look = (() => {
   }catch(e){}
   return Object.assign({}, LOOK_DEFAULT);
 })();
-function saveLook(){ localStorage.setItem('lot.look', JSON.stringify(look)); }
+/* 라벨은 저장값을 믿지 않고 look 에서 다시 유도한다.
+   의상 개념이 없던 판(색만 저장)에서 넘어온 기록도 이러면 이름이 맞는다. */
+let outfitId = (() => {
+  const m = OUTFITS.find(o => LOOK_KEYS.every(k => o.look[k] === look[k]));
+  return m ? m.id : 'custom';
+})();
+function saveLook(){
+  localStorage.setItem('lot.look', JSON.stringify(look));
+  localStorage.setItem('lot.outfit', outfitId);
+}
+const outfitName = () => (OUTFITS.find(o => o.id === outfitId) || {n:'직접 배색'}).n;
 
 const rgb = h => [parseInt(h.slice(0,2),16), parseInt(h.slice(2,4),16), parseInt(h.slice(4,6),16)];
 /* 외형이 바뀔 때만 호출. 192x192 = 36,864px 루프라 한 번은 싸다. */
@@ -1020,42 +1065,104 @@ function buildLook(){
 }
 const meKey = () => has('me') ? 'me' : 'ch1';
 
+/* 의상 카드 썸네일 — 전체 시트(192x192)를 굽지 않고 idle-아래 프레임 한 장만 만든다. */
+const thumbCache = {};
+function outfitThumb(o){
+  if (thumbCache[o.id]) return thumbCache[o.id];
+  if (!has('ch1')) return null;
+  const c = document.createElement('canvas'); c.width = 32; c.height = 32;
+  const g = c.getContext('2d', {willReadFrequently:true});
+  g.imageSmoothingEnabled = false;
+  g.drawImage(IMG.ch1, 0, 0, 32, 32, 0, 0, 32, 32);
+  const map = new Map();
+  for (const k of LOOK_KEYS){
+    const part = LOOK_PARTS[k], ramp = RAMPS[o.look[k]].c;
+    part.src.forEach((from, i) => {
+      map.set(from, rgb(part.src.length >= 3 ? ramp[i] : ramp[i === 0 ? 0 : 2]));
+    });
+  }
+  const d = g.getImageData(0, 0, 32, 32), a = d.data;
+  const hex2 = v => v.toString(16).padStart(2,'0');
+  for (let i = 0; i < a.length; i += 4){
+    if (a[i+3] === 0) continue;
+    const to = map.get(hex2(a[i]) + hex2(a[i+1]) + hex2(a[i+2]));
+    if (to){ a[i] = to[0]; a[i+1] = to[1]; a[i+2] = to[2]; }
+  }
+  g.putImageData(d, 0, 0);
+  return (thumbCache[o.id] = c.toDataURL());
+}
+
 /* ── 장비창 ──
    스와치는 열 때 한 번만 그리고 이후엔 class 만 토글한다.
    매번 innerHTML 을 다시 쓰면 눌린 버튼이 사라져서 브라우저가 click 을 안 쏜다
    (setHTML 주석 참고). */
-let lookOpen = false, lookT = 0;
+let lookOpen = false, lookT = 0, lookTab = 0;
 window.__look = open => {
   if (open && state === 'playing') return;      // 플레이 중에는 못 연다
   lookOpen = !!open;
   el.look.style.display = lookOpen ? 'flex' : 'none';
   if (lookOpen){
     for (const k in keys) keys[k] = false;    // 누르고 있던 이동키가 걸린 채 남지 않게
-    renderLookSlots(); lookT = 0;
+    renderLookPane(); lookT = 0;
   }
 };
+/* 탭 전환은 class 만 토글한다 — 눌린 버튼을 innerHTML 로 날리면 브라우저가 click 을 안 쏜다. */
+window.__lookTab = i => {
+  lookTab = i;
+  [...el.lookTabs.children].forEach((b, j) => { b.className = j === i ? 'on' : ''; });
+  renderLookPane();
+};
+/* 의상 착용 — 램프 인덱스를 통째로 갈아끼운다. */
+window.__wear = id => {
+  const o = OUTFITS.find(x => x.id === id);
+  if (!o) return;
+  outfitId = id;
+  look = Object.assign({}, o.look);
+  saveLook(); buildLook();
+  [...el.lookPane.querySelectorAll('.ocard')].forEach(c => {
+    c.className = 'ocard' + (c.dataset.id === id ? ' on' : '');
+  });
+  syncLookLabels();
+};
+/* 직접 배색 — 프리셋에서 벗어나면 '직접 배색' 으로 표시가 바뀐다. */
 window.__lookPick = (part, i) => {
   if (!LOOK_PARTS[part] || !RAMPS[i]) return;
-  look[part] = i; saveLook(); buildLook();
-  const host = document.querySelector('#lookSlots [data-part="' + part + '"]');
+  look[part] = i;
+  const match = OUTFITS.find(o => LOOK_KEYS.every(k => o.look[k] === look[k]));
+  outfitId = match ? match.id : 'custom';
+  saveLook(); buildLook();
+  const host = el.lookPane.querySelector('[data-part="' + part + '"]');
   if (host) [...host.children].forEach((b, j) => { b.className = j === i ? 'on' : ''; });
-  if (el.lookName) el.lookName.textContent = lookSummary();
+  syncLookLabels();
 };
-window.__lookReset = () => {
-  look = Object.assign({}, LOOK_DEFAULT);
-  saveLook(); buildLook(); renderLookSlots();
-};
-const lookSummary = () => LOOK_KEYS.map(k => RAMPS[look[k]].n).join(' · ');
-function renderLookSlots(){
-  el.lookSlots.innerHTML = LOOK_KEYS.map(k =>
+function syncLookLabels(){
+  if (el.lookName) el.lookName.textContent = outfitName();
+  if (el.lookFoot) el.lookFoot.textContent = lookTab === 0
+    ? '보유 의상 ' + OUTFITS.length + '종 — 지금은 전부 착용 가능하다 (상점은 다음 단계)'
+    : LOOK_KEYS.map(k => LOOK_PARTS[k].label + ' ' + RAMPS[look[k]].n).join(' · ');
+}
+function renderLookPane(){
+  el.lookPane.innerHTML = lookTab === 0 ? outfitCardsHTML() : swatchHTML();
+  syncLookLabels();
+}
+function outfitCardsHTML(){
+  return '<div class="ocards">' + OUTFITS.map(o => {
+    const src = outfitThumb(o);
+    return '<button class="ocard' + (o.id === outfitId ? ' on' : '') + '"'
+      + ' data-id="' + o.id + '" onclick="window.__wear(\'' + o.id + '\')">'
+      + (src ? '<img src="' + src + '" alt="">' : '<span class="ph"></span>')
+      + '<span>' + esc(o.n) + '</span></button>';
+  }).join('') + '</div>';
+}
+function swatchHTML(){
+  return '<div class="lslots">' + LOOK_KEYS.map(k =>
     '<div class="slot"><span class="nm">' + esc(LOOK_PARTS[k].label) + '</span>'
     + '<span class="sw" data-part="' + k + '">'
     + RAMPS.map((r, i) =>
         '<button' + (look[k] === i ? ' class="on"' : '') + ' title="' + esc(r.n) + '"'
         + ' style="background:#' + r.c[1] + '"'
         + ' onclick="window.__lookPick(\'' + k + '\',' + i + ')"></button>').join('')
-    + '</span></div>').join('');
-  if (el.lookName) el.lookName.textContent = lookSummary();
+    + '</span></div>').join('') + '</div>';
 }
 /* 미리보기 — 걷는 모습을 6배로. 옷이 실제로 어떻게 보이는지는 움직여봐야 안다. */
 function drawLookPreview(dt){
