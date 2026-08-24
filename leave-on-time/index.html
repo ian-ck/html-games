@@ -57,6 +57,7 @@
   .brk div b{color:var(--ink);font-variant-numeric:tabular-nums}
   .brk div.sum{border-top:1px solid var(--line);padding-top:7px;margin-top:3px;color:var(--accent);font-weight:700}
   .brk div.sum b{color:var(--accent);font-size:16px}
+  .brk div.sum.coin,.brk div.sum.coin b{color:var(--warn)}
   header{display:flex;align-items:baseline;gap:12px;margin-bottom:10px}
   header h1{font-size:18px;margin:0;letter-spacing:-.4px}
   header .sub{font-size:12px;color:var(--dim)}
@@ -120,6 +121,11 @@
   #look .ocard:hover{border-color:#4a5470;color:var(--ink)}
   #look .ocard.on{border-color:var(--accent);color:var(--ink);background:#16241d;font-weight:700}
   #look .ocard img,#look .ocard .ph{width:44px;height:44px;image-rendering:pixelated;display:block}
+  #look .ocard em{font-style:normal;font-size:10px;color:var(--warn);font-weight:700}
+  #look .ocard.poor{opacity:.5}
+  #look .ocard.poor em{color:var(--bad)}
+  #look .ahead .coins{margin-left:auto;font-size:12px;color:var(--warn);font-weight:800}
+  #look .ahead .coins + button{margin-left:10px}
   #look .lslots{display:flex;flex-direction:column;gap:9px}
   #look .lnote{font-size:12.5px;color:#8f99ab;background:#1a2029;border:1px solid var(--line);
     border-radius:10px;padding:14px;line-height:1.6}
@@ -342,6 +348,7 @@
 
     <div id="look">
       <div class="ahead"><span>👕</span><span>내 장비</span>
+        <span class="coins" id="lookCoins">🪙 0</span>
         <button onclick="window.__look(0)">닫기</button></div>
       <div class="lbody">
         <div class="lprev"><canvas id="lookcv" width="192" height="192"></canvas>
@@ -349,7 +356,8 @@
         <div class="lright">
           <div class="ltabs" id="lookTabs">
             <button class="on" onclick="window.__lookTab(0)">👔 의상</button>
-            <button onclick="window.__lookTab(1)">🎨 직접 배색</button>
+            <button onclick="window.__lookTab(1)">🛒 상점</button>
+            <button onclick="window.__lookTab(2)">🎨 직접 배색</button>
           </div>
           <div id="lookPane"></div>
         </div>
@@ -420,6 +428,7 @@ const el = {
   look:document.getElementById('look'), lookcv:document.getElementById('lookcv'),
   lookPane:document.getElementById('lookPane'), lookName:document.getElementById('lookName'),
   lookTabs:document.getElementById('lookTabs'), lookFoot:document.getElementById('lookFoot'),
+  lookCoins:document.getElementById('lookCoins'),
   dish:document.getElementById('dish'), dishBar:document.getElementById('dishBar'),
   dishMsg:document.getElementById('dishMsg'), dishTime:document.getElementById('dishTime'),
 };
@@ -1003,17 +1012,46 @@ const LOOK_KEYS = Object.keys(LOOK_PARTS);
    색 조합은 눈으로 확인해서 서로 구분되는 것만 남겼다 —
    특히 재킷이 가장 넓은 면적이라 재킷 색이 겹치면 다른 옷으로 안 보인다. */
 const OUTFITS = [
-  {id:'default', n:'기본 출근복',  look:{hair:1,  shirt:8,  coat:5,  pants:4,  shoes:0}},
-  {id:'suit',    n:'정장',        look:{hair:1,  shirt:2,  coat:3,  pants:3,  shoes:0}},
-  {id:'goth',    n:'고어룩',      look:{hair:0,  shirt:0,  coat:0,  pants:0,  shoes:0}},
-  {id:'hoodie',  n:'개발자 후드',  look:{hair:1,  shirt:0,  coat:1,  pants:0,  shoes:2}},
-  {id:'vest',    n:'물류 조끼',    look:{hair:0,  shirt:4,  coat:9,  pants:3,  shoes:0}},
-  {id:'lab',     n:'연구원 가운',  look:{hair:1,  shirt:5,  coat:2,  pants:2,  shoes:0}},
-  {id:'vacay',   n:'휴가룩',      look:{hair:9,  shirt:2,  coat:11, pants:10, shoes:2}},
-  {id:'zombie',  n:'야근 좀비',    look:{hair:1,  shirt:6,  coat:0,  pants:0,  shoes:0}},
-  {id:'rookie',  n:'신입 열정',    look:{hair:0,  shirt:7,  coat:7,  pants:3,  shoes:0}},
-  {id:'purple',  n:'컬리 퍼플',    look:{hair:0,  shirt:2,  coat:12, pants:12, shoes:0}},
+  {id:'default', n:'기본 출근복',  p:0,   look:{hair:1,  shirt:8,  coat:5,  pants:4,  shoes:0}},
+  {id:'hoodie',  n:'개발자 후드',  p:40,  look:{hair:1,  shirt:0,  coat:1,  pants:0,  shoes:2}},
+  {id:'rookie',  n:'신입 열정',    p:40,  look:{hair:0,  shirt:7,  coat:7,  pants:3,  shoes:0}},
+  {id:'suit',    n:'정장',        p:80,  look:{hair:1,  shirt:2,  coat:3,  pants:3,  shoes:0}},
+  {id:'goth',    n:'고어룩',      p:80,  look:{hair:0,  shirt:0,  coat:0,  pants:0,  shoes:0}},
+  {id:'vest',    n:'물류 조끼',    p:120, look:{hair:0,  shirt:4,  coat:9,  pants:3,  shoes:0}},
+  {id:'lab',     n:'연구원 가운',  p:120, look:{hair:1,  shirt:5,  coat:2,  pants:2,  shoes:0}},
+  {id:'vacay',   n:'휴가룩',      p:200, look:{hair:9,  shirt:2,  coat:11, pants:10, shoes:2}},
+  {id:'zombie',  n:'야근 좀비',    p:200, look:{hair:1,  shirt:6,  coat:0,  pants:0,  shoes:0}},
+  {id:'purple',  n:'컬리 퍼플',    p:300, look:{hair:0,  shirt:2,  coat:12, pants:12, shoes:0}},
 ];
+/* 지갑·인벤토리 — 지금은 이 브라우저에만 남는다.
+   점수가 이미 클라이언트 신뢰 모델이라(ARCHITECTURE.md 「알려진 한계」) 서버에 둬도 위조는 못 막는다.
+   나중에 pid 기준 D1 로 옮길 거면 LB 처럼 이 래퍼 안쪽만 갈아끼우면 된다. */
+const SHOP = {
+  coins: Math.max(0, parseInt(localStorage.getItem('lot.coins') || '0', 10) || 0),
+  owned: (() => {
+    try{
+      const v = JSON.parse(localStorage.getItem('lot.owned') || 'null');
+      if (Array.isArray(v)) return new Set(v.filter(x => OUTFITS.some(o => o.id === x)));
+    }catch(e){}
+    // 인벤토리 도입 전 판: 기본 출근복 + 지금 입고 있던 옷은 빼앗지 않는다
+    const st = new Set(['default']);
+    const cur = localStorage.getItem('lot.outfit');
+    if (cur && OUTFITS.some(o => o.id === cur)) st.add(cur);
+    return st;
+  })(),
+  save(){
+    localStorage.setItem('lot.coins', String(this.coins));
+    localStorage.setItem('lot.owned', JSON.stringify([...this.owned]));
+  },
+  has(id){ return this.owned.has(id); },
+  earn(n){ if (n > 0){ this.coins += n; this.save(); } },
+  buy(id){
+    const o = OUTFITS.find(x => x.id === id);
+    if (!o || this.has(id) || this.coins < o.p) return false;
+    this.coins -= o.p; this.owned.add(id); this.save();
+    return true;
+  },
+};
 /* 의상 9종은 **고정 프리셋**이다 — 이름과 정체성이 있고 나중에 세트 효과가 붙는다.
    색을 직접 만질 수 있는 건 '기본 출근복' 하나뿐이고, 그 색이 baseLook 이다.
    이렇게 하면 프리셋이 흐려지지 않으면서 배색 기능도 남는다. */
@@ -1037,7 +1075,7 @@ let look = Object.assign({}, baseLook);
 /* 라벨은 저장값을 믿지 않고 look 에서 다시 유도한다.
    의상 개념이 없던 판(색만 저장)에서 넘어온 기록도 이러면 이름이 맞는다. */
 let outfitId = localStorage.getItem('lot.outfit') || 'default';
-if (!OUTFITS.some(o => o.id === outfitId)) outfitId = 'default';   // 'custom' 등 옛 값 흡수
+if (!OUTFITS.some(o => o.id === outfitId) || !SHOP.has(outfitId)) outfitId = 'default';
 look = Object.assign({}, outfitLook(OUTFITS.find(o => o.id === outfitId)));
 function saveLook(){
   localStorage.setItem('lot.baseLook', JSON.stringify(baseLook));
@@ -1127,7 +1165,7 @@ window.__lookTab = i => {
 /* 의상 착용 — 램프 인덱스를 통째로 갈아끼운다. */
 window.__wear = id => {
   const o = OUTFITS.find(x => x.id === id);
-  if (!o) return;
+  if (!o || !SHOP.has(id)) return;              // 안 산 옷은 입을 수 없다
   outfitId = id;
   look = Object.assign({}, outfitLook(o));
   saveLook(); buildLook();
@@ -1136,7 +1174,7 @@ window.__wear = id => {
       c.className = 'ocard' + (c.dataset.id === id ? ' on' : '');
     });
     syncLookLabels();
-  } else renderLookPane();      // 배색 탭은 안내 <-> 스와치 로 내용이 바뀐다
+  } else renderLookPane();      // 상점·배색 탭은 내용 자체가 바뀐다
 };
 /* 직접 배색 — '기본 출근복' 을 입고 있을 때만 가능하다. 프리셋 9종은 고정이다. */
 window.__lookPick = (part, i) => {
@@ -1149,27 +1187,55 @@ window.__lookPick = (part, i) => {
   if (host) [...host.children].forEach((b, j) => { b.className = j === i ? 'on' : ''; });
   syncLookLabels();
 };
-window.__wearBase = () => { window.__wear('default'); window.__lookTab(1); };
+window.__wearBase = () => { window.__wear('default'); window.__lookTab(2); };
+window.__buy = id => {
+  const o = OUTFITS.find(x => x.id === id);
+  if (!o) return;
+  if (!SHOP.buy(id)){
+    flash(SHOP.has(id) ? '이미 갖고 있다' : '🪙 코인이 ' + fmt(o.p - SHOP.coins) + ' 부족하다');
+    return;
+  }
+  SFX.ding();
+  flash('🛒 ' + o.n + ' 구매 — 🪙 ' + fmt(SHOP.coins) + ' 남음');
+  window.__wear(id);                            // 사면 바로 입힌다
+  renderLookPane();                             // 상점 목록에서 빠지고 의상 탭으로 옮겨간다
+};
 function syncLookLabels(){
   if (el.lookName) el.lookName.textContent = outfitName();
-  if (el.lookFoot) el.lookFoot.textContent = lookTab === 0
-    ? '보유 의상 ' + OUTFITS.length + '종 — 지금은 전부 착용 가능하다 (상점은 다음 단계)'
+  if (el.lookCoins) el.lookCoins.textContent = '🪙 ' + fmt(SHOP.coins);
+  if (el.lookFoot) el.lookFoot.textContent =
+      lookTab === 0 ? '보유 의상 ' + SHOP.owned.size + ' / ' + OUTFITS.length + '종'
+    : lookTab === 1 ? '레벨을 클리어하면 점수 1,000점당 🪙 1 이 쌓인다'
     : outfitId === 'default'
       ? LOOK_KEYS.map(k => LOOK_PARTS[k].label + ' ' + RAMPS[look[k]].n).join(' · ')
       : '기본 출근복에서만 배색할 수 있다';
 }
 function renderLookPane(){
-  el.lookPane.innerHTML = lookTab === 0 ? outfitCardsHTML() : swatchHTML();
+  el.lookPane.innerHTML = lookTab === 0 ? outfitCardsHTML()
+                        : lookTab === 1 ? shopHTML()
+                                        : swatchHTML();
   syncLookLabels();
 }
+function card(o, mode){
+  const src = outfitThumb(o), buy = mode === 'shop';
+  return '<button class="ocard'
+    + (!buy && o.id === outfitId ? ' on' : '')
+    + (buy && SHOP.coins < o.p ? ' poor' : '') + '"'
+    + ' data-id="' + o.id + '"'
+    + ' onclick="window.__' + (buy ? 'buy' : 'wear') + '(\'' + o.id + '\')">'
+    + (src ? '<img src="' + src + '" alt="">' : '<span class="ph"></span>')
+    + '<span>' + esc(o.n) + '</span>'
+    + (buy ? '<em>🪙 ' + fmt(o.p) + '</em>' : '') + '</button>';
+}
 function outfitCardsHTML(){
-  return '<div class="ocards">' + OUTFITS.map(o => {
-    const src = outfitThumb(o);
-    return '<button class="ocard' + (o.id === outfitId ? ' on' : '') + '"'
-      + ' data-id="' + o.id + '" onclick="window.__wear(\'' + o.id + '\')">'
-      + (src ? '<img src="' + src + '" alt="">' : '<span class="ph"></span>')
-      + '<span>' + esc(o.n) + '</span></button>';
-  }).join('') + '</div>';
+  return '<div class="ocards">'
+    + OUTFITS.filter(o => SHOP.has(o.id)).map(o => card(o, 'wear')).join('') + '</div>';
+}
+function shopHTML(){
+  const rest = OUTFITS.filter(o => !SHOP.has(o.id));
+  if (!rest.length)
+    return '<div class="lnote">🛒 전부 구매했다. 새 옷은 계속 추가할 예정이다.</div>';
+  return '<div class="ocards">' + rest.map(o => card(o, 'shop')).join('') + '</div>';
 }
 function swatchHTML(){
   if (outfitId !== 'default')
@@ -2079,6 +2145,8 @@ function win(){
   state = 'clear'; SFX.win(); endTyping(null, true);
   const br = scoreBreak();
   score += br.total;
+  const coin = skipped ? 0 : Math.floor(br.total / 1000);   // 런 총점/1000 과 사실상 같다
+  SHOP.earn(coin);
   if (!skipped){
     if (wave > bestLv){ bestLv = wave; localStorage.setItem('lot.bestLv', bestLv); }
     if (score > bestScore){ bestScore = score; localStorage.setItem('lot.bestScore', score); }
@@ -2096,6 +2164,8 @@ function win(){
     +   (br.cleanB ? row('🤫 무적발 보너스 (한 번도 안 들킴)', br.cleanB)
                    : '<div style="opacity:.45"><span>무적발 보너스 ('+caught+'번 들킴)</span><b>+0</b></div>')
     +   '<div class="sum"><span>누적 총점</span><b>'+fmt(score)+'</b></div>'
+    +   (coin ? '<div class="sum coin"><span>🪙 코인</span><b>+'+fmt(coin)
+                + ' <span style="color:#69728a;font-weight:400">(보유 '+fmt(SHOP.coins)+')</span></b></div>' : '')
     + '</div>'
     + (newAt(wave+1) ? '<p class="newthing">다음 레벨의 변수 — '+newAt(wave+1)+'</p>' : '')
     + '<div class="tasklist">'+n.tasks.map(t=>'<span>'+TASKS[t].icon+' '+tLabel(t)+'</span>').join('')+'</div>'
@@ -2358,7 +2428,8 @@ function setHTML(node, key, html){
 }
 function syncHUD(){
   setHTML(el.wave, 'wave', 'LV.' + wave + ' <span style="color:#69728a;font-weight:400">· '+wave+'일차</span>');
-  el.best.textContent = bestLv ? '🏆 최고 LV.' + bestLv + ' · ' + fmt(bestScore) + '점' : '';
+  el.best.textContent = (bestLv ? '🏆 최고 LV.' + bestLv + ' · ' + fmt(bestScore) + '점 · ' : '')
+                      + '🪙 ' + fmt(SHOP.coins);
   if (!nickEditing)
     setHTML(el.nick, 'nick',
         '<button class="board" onclick="window.__look(1)"'
