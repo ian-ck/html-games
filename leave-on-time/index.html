@@ -125,6 +125,35 @@
   #look .ocard.poor{opacity:.5}
   #look .ocard.poor em{color:var(--bad)}
   #look .ahead .coins{margin-left:auto;font-size:12px;color:var(--warn);font-weight:800}
+  /* 장비 슬롯 */
+  #look .gslot{display:flex;align-items:flex-start;gap:8px;margin-bottom:8px}
+  #look .gslot .nm{flex:0 0 74px;font-size:11.5px;color:#9aa3b4;font-weight:700;padding-top:5px}
+  #look .gitems{display:flex;gap:5px;flex-wrap:wrap}
+  #look .gitem{background:#1a2029;border:1px solid var(--line);color:#8f99ab;border-radius:8px;
+    padding:5px 9px;font-size:11.5px;cursor:pointer;font-family:inherit;line-height:1.35;text-align:left}
+  #look .gitem:hover{color:var(--ink);border-color:#4a5470}
+  #look .gitem.on{border-color:var(--accent);color:var(--ink);background:#16241d;font-weight:700}
+  #look .gitem em{display:block;font-style:normal;font-size:10px;color:#69728a;font-weight:400}
+  #look .gitem.on em{color:var(--accent)}
+  #look .gempty{font-size:11.5px;color:#5f687d;padding-top:6px}
+  #look .gsum{font-size:11.5px;color:#8f99ab;background:#151b24;border:1px solid var(--line);
+    border-radius:8px;padding:8px 10px;margin-top:8px}
+  #look .gsum b{color:var(--ink)}
+  /* 상점 행 */
+  #look .shead{font-size:11px;letter-spacing:.06em;color:#7b8497;font-weight:800;
+    text-transform:uppercase;margin:12px 0 6px}
+  #look .shead:first-child{margin-top:0}
+  #look .grid2{display:flex;flex-direction:column;gap:5px}
+  #look .brow{display:flex;align-items:center;gap:9px;background:#1a2029;border:1px solid var(--line);
+    border-radius:9px;padding:8px 10px;cursor:pointer;font-family:inherit;text-align:left;width:100%}
+  #look .brow:hover{border-color:#4a5470}
+  #look .brow.poor{opacity:.5}
+  #look .brow .bn{flex:0 0 auto;font-size:12px;color:var(--ink);font-weight:700;white-space:nowrap}
+  #look .brow .bn i{font-style:normal;font-size:10.5px;color:#69728a;font-weight:400}
+  #look .brow .bd{flex:1;min-width:0;font-size:11px;color:#7b8497;line-height:1.35}
+  #look .brow .bd b{color:var(--accent)}
+  #look .brow em{flex:0 0 auto;font-style:normal;font-size:11.5px;color:var(--warn);font-weight:800}
+  #look .brow.poor em{color:var(--bad)}
   #look .ahead .coins + button{margin-left:10px}
   #look .lslots{display:flex;flex-direction:column;gap:9px}
   #look .lnote{font-size:12.5px;color:#8f99ab;background:#1a2029;border:1px solid var(--line);
@@ -356,8 +385,9 @@
         <div class="lright">
           <div class="ltabs" id="lookTabs">
             <button class="on" onclick="window.__lookTab(0)">👔 의상</button>
-            <button onclick="window.__lookTab(1)">🛒 상점</button>
-            <button onclick="window.__lookTab(2)">🎨 직접 배색</button>
+            <button onclick="window.__lookTab(1)">🎒 장비</button>
+            <button onclick="window.__lookTab(2)">🛒 상점</button>
+            <button onclick="window.__lookTab(3)">🎨 배색</button>
           </div>
           <div id="lookPane"></div>
         </div>
@@ -1023,6 +1053,34 @@ const OUTFITS = [
   {id:'zombie',  n:'야근 좀비',    p:200, look:{hair:1,  shirt:6,  coat:0,  pants:0,  shoes:0}},
   {id:'purple',  n:'컬리 퍼플',    p:300, look:{hair:0,  shirt:2,  coat:12, pants:12, shoes:0}},
 ];
+/* 장비템 — 슬롯당 하나만 착용한다(같은 유형 중복 불가).
+   효과는 직군·언어 팩에 따라 다르다: 자기 생태계는 크게, JS 는 넓지만 얕게.
+   par(⚡보너스 기준시간)을 늘려주는 방식이라 상한(fix 700 / term 600)이 그대로 걸려
+   무한히 세지지 않는다. 합산 후 GEAR_CAP 으로 한 번 더 자른다. */
+const GEAR = [
+  {id:'w_apple',  n:'애플워치',  slot:'watch',  p:160, boost:{swift:.25, js:.08}},
+  {id:'w_sam',    n:'삼성워치',  slot:'watch',  p:160, boost:{kotlin:.25, js:.08}},
+  {id:'w_garmin', n:'가민워치',  slot:'watch',  p:120, boost:{js:.06, kotlin:.06, swift:.06, policy:.06}},
+  {id:'l_mac',    n:'맥북',      slot:'laptop', p:400, boost:{swift:.30, js:.12, policy:.06}},
+  {id:'l_think',  n:'씽크패드',  slot:'laptop', p:400, boost:{kotlin:.30, js:.12}},
+  {id:'l_gram',   n:'그램',      slot:'laptop', p:360, boost:{policy:.30, js:.06, kotlin:.06}},
+  {id:'t_ipad',   n:'아이패드',  slot:'tablet', p:280, boost:{policy:.25, swift:.12}},
+  {id:'t_galtab', n:'갤탭',      slot:'tablet', p:280, boost:{kotlin:.12, policy:.12}},
+];
+const SLOTS = {watch:'⌚ 워치', laptop:'💻 노트북', tablet:'📱 태블릿'};
+const GEAR_CAP = 1.6;                       // par 배율 상한
+
+/* 소비템 — 쓸 때마다 하나씩 사라진다. 여러 개 살 수 있다. */
+const USABLES = [
+  {id:'claude', n:'Claude Code', icon:'🤖', p:300,
+   d:'🚨오류수정·⌨️커밋 중 <b>Tab</b> — AI 가 즉시 고치고 전송한다'},
+  {id:'resign', n:'사직서', icon:'💼', p:200,
+   d:'야근 확정 1회 방어 — 그 날을 처음부터 다시. 그 레벨은 클리어·시간 보너스가 없다'},
+];
+const ITEMS = () => OUTFITS.concat(GEAR, USABLES);
+const findItem = id => ITEMS().find(x => x.id === id);
+const isUsable = id => USABLES.some(u => u.id === id);
+
 /* 지갑·인벤토리 — 지금은 이 브라우저에만 남는다.
    점수가 이미 클라이언트 신뢰 모델이라(ARCHITECTURE.md 「알려진 한계」) 서버에 둬도 위조는 못 막는다.
    나중에 pid 기준 D1 로 옮길 거면 LB 처럼 이 래퍼 안쪽만 갈아끼우면 된다. */
@@ -1031,7 +1089,8 @@ const SHOP = {
   owned: (() => {
     try{
       const v = JSON.parse(localStorage.getItem('lot.owned') || 'null');
-      if (Array.isArray(v)) return new Set(v.filter(x => OUTFITS.some(o => o.id === x)));
+      if (Array.isArray(v))
+        return new Set(v.filter(x => OUTFITS.concat(GEAR).some(o => o.id === x)));
     }catch(e){}
     // 인벤토리 도입 전 판: 기본 출근복 + 지금 입고 있던 옷은 빼앗지 않는다
     const st = new Set(['default']);
@@ -1039,19 +1098,71 @@ const SHOP = {
     if (cur && OUTFITS.some(o => o.id === cur)) st.add(cur);
     return st;
   })(),
+  stock: (() => {
+    const o = {};
+    for (const u of USABLES) o[u.id] = 0;
+    try{
+      const v = JSON.parse(localStorage.getItem('lot.stock') || 'null');
+      if (v && typeof v === 'object')
+        for (const u of USABLES)
+          if (Number.isInteger(v[u.id]) && v[u.id] > 0) o[u.id] = v[u.id];
+    }catch(e){}
+    return o;
+  })(),
+  gear: (() => {
+    const o = {}; for (const k in SLOTS) o[k] = null;
+    try{
+      const v = JSON.parse(localStorage.getItem('lot.gear') || 'null');
+      if (v && typeof v === 'object')
+        for (const k in SLOTS){
+          const g = GEAR.find(x => x.id === v[k] && x.slot === k);
+          if (g) o[k] = g.id;
+        }
+    }catch(e){}
+    return o;
+  })(),
   save(){
     localStorage.setItem('lot.coins', String(this.coins));
     localStorage.setItem('lot.owned', JSON.stringify([...this.owned]));
+    localStorage.setItem('lot.stock', JSON.stringify(this.stock));
+    localStorage.setItem('lot.gear',  JSON.stringify(this.gear));
   },
   has(id){ return this.owned.has(id); },
+  count(id){ return this.stock[id] || 0; },
   earn(n){ if (n > 0){ this.coins += n; this.save(); } },
   buy(id){
-    const o = OUTFITS.find(x => x.id === id);
-    if (!o || this.has(id) || this.coins < o.p) return false;
-    this.coins -= o.p; this.owned.add(id); this.save();
+    const it = findItem(id);
+    if (!it || this.coins < it.p) return false;
+    if (!isUsable(id) && this.has(id)) return false;      // 의상·장비는 중복 구매 불가
+    this.coins -= it.p;
+    if (isUsable(id)) this.stock[id] = this.count(id) + 1;
+    else this.owned.add(id);
+    this.save();
+    return true;
+  },
+  /* 소비템 사용 — 하나 줄이고 저장한다. 없으면 false. */
+  use(id){
+    if (this.count(id) <= 0) return false;
+    this.stock[id]--; this.save();
+    return true;
+  },
+  equip(id){
+    const g = GEAR.find(x => x.id === id);
+    if (!g || !this.has(id)) return false;
+    this.gear[g.slot] = (this.gear[g.slot] === id) ? null : id;   // 다시 누르면 해제
+    this.save();
     return true;
   },
 };
+/* 착용 장비의 par 배율. 팩(언어)에 따라 값이 다르고 합산 후 상한으로 자른다. */
+function gearMul(){
+  let m = 1;
+  for (const k in SHOP.gear){
+    const g = GEAR.find(x => x.id === SHOP.gear[k]);
+    if (g) m += (g.boost[P.lang] || 0);
+  }
+  return Math.min(GEAR_CAP, m);
+}
 /* 의상 9종은 **고정 프리셋**이다 — 이름과 정체성이 있고 나중에 세트 효과가 붙는다.
    색을 직접 만질 수 있는 건 '기본 출근복' 하나뿐이고, 그 색이 baseLook 이다.
    이렇게 하면 프리셋이 흐려지지 않으면서 배색 기능도 남는다. */
@@ -1187,34 +1298,66 @@ window.__lookPick = (part, i) => {
   if (host) [...host.children].forEach((b, j) => { b.className = j === i ? 'on' : ''; });
   syncLookLabels();
 };
-window.__wearBase = () => { window.__wear('default'); window.__lookTab(2); };
+window.__wearBase = () => { window.__wear('default'); window.__lookTab(3); };
 window.__buy = id => {
-  const o = OUTFITS.find(x => x.id === id);
+  const o = findItem(id);
   if (!o) return;
   if (!SHOP.buy(id)){
-    flash(SHOP.has(id) ? '이미 갖고 있다' : '🪙 코인이 ' + fmt(o.p - SHOP.coins) + ' 부족하다');
+    flash(SHOP.coins < o.p ? '🪙 코인이 ' + fmt(o.p - SHOP.coins) + ' 부족하다' : '이미 갖고 있다');
     return;
   }
   SFX.ding();
   flash('🛒 ' + o.n + ' 구매 — 🪙 ' + fmt(SHOP.coins) + ' 남음');
-  window.__wear(id);                            // 사면 바로 입힌다
-  renderLookPane();                             // 상점 목록에서 빠지고 의상 탭으로 옮겨간다
+  if (OUTFITS.some(x => x.id === id)) window.__wear(id);      // 옷은 사면 바로 입는다
+  if (GEAR.some(x => x.id === id))    SHOP.equip(id);         // 장비는 빈 슬롯에 바로 착용
+  renderLookPane();
 };
 function syncLookLabels(){
   if (el.lookName) el.lookName.textContent = outfitName();
   if (el.lookCoins) el.lookCoins.textContent = '🪙 ' + fmt(SHOP.coins);
   if (el.lookFoot) el.lookFoot.textContent =
-      lookTab === 0 ? '보유 의상 ' + SHOP.owned.size + ' / ' + OUTFITS.length + '종'
-    : lookTab === 1 ? '레벨을 클리어하면 점수 1,000점당 🪙 1 이 쌓인다'
+      lookTab === 0 ? '보유 의상 ' + OUTFITS.filter(o => SHOP.has(o.id)).length + ' / ' + OUTFITS.length + '종'
+    : lookTab === 1 ? '장비 효과는 팩(언어)마다 다르다 — 지금 팩: ' + P.langName
+    : lookTab === 2 ? '레벨을 클리어하면 점수 1,000점당 🪙 1 이 쌓인다'
     : outfitId === 'default'
       ? LOOK_KEYS.map(k => LOOK_PARTS[k].label + ' ' + RAMPS[look[k]].n).join(' · ')
       : '기본 출근복에서만 배색할 수 있다';
 }
 function renderLookPane(){
   el.lookPane.innerHTML = lookTab === 0 ? outfitCardsHTML()
-                        : lookTab === 1 ? shopHTML()
+                        : lookTab === 1 ? gearHTML()
+                        : lookTab === 2 ? shopHTML()
                                         : swatchHTML();
   syncLookLabels();
+}
+/* 🎒 장비 — 슬롯당 하나. 다시 누르면 해제된다. 소비템 보유 현황도 여기서 본다. */
+window.__equip = id => { if (SHOP.equip(id)) renderLookPane(); };
+function gearHTML(){
+  const mine = GEAR.filter(g => SHOP.has(g.id));
+  let h = '';
+  for (const slot in SLOTS){
+    const list = mine.filter(g => g.slot === slot);
+    h += '<div class="gslot"><span class="nm">' + SLOTS[slot] + '</span>'
+      + (list.length
+          ? '<span class="gitems">' + list.map(g =>
+              '<button class="gitem' + (SHOP.gear[slot] === g.id ? ' on' : '') + '"'
+              + ' onclick="window.__equip(\'' + g.id + '\')">' + esc(g.n)
+              + '<em>' + boostLabel(g) + '</em></button>').join('') + '</span>'
+          : '<span class="gempty">상점에서 살 수 있다</span>')
+      + '</div>';
+  }
+  const mul = gearMul();
+  h += '<div class="gsum">현재 팩 <b>' + esc(P.langName) + '</b> 기준 '
+     + '⌨️커밋 · 🚨' + esc(tLabel('error')) + ' 기준시간 <b>×' + mul.toFixed(2) + '</b>'
+     + (mul >= GEAR_CAP ? ' <span style="color:var(--warn)">(상한)</span>' : '') + '</div>';
+  h += '<div class="gsum">' + USABLES.map(u =>
+        u.icon + ' ' + esc(u.n) + ' <b>' + SHOP.count(u.id) + '개</b>').join(' · ') + '</div>';
+  return h;
+}
+/* 착용 장비가 지금 팩에서 몇 %를 주는지. 0 이면 이 팩엔 쓸모없다는 뜻이다. */
+function boostLabel(g){
+  const v = g.boost[P.lang] || 0;
+  return v ? '+' + Math.round(v*100) + '%' : '이 팩엔 효과 없음';
 }
 function card(o, mode){
   const src = outfitThumb(o), buy = mode === 'shop';
@@ -1232,10 +1375,30 @@ function outfitCardsHTML(){
     + OUTFITS.filter(o => SHOP.has(o.id)).map(o => card(o, 'wear')).join('') + '</div>';
 }
 function shopHTML(){
-  const rest = OUTFITS.filter(o => !SHOP.has(o.id));
-  if (!rest.length)
-    return '<div class="lnote">🛒 전부 구매했다. 새 옷은 계속 추가할 예정이다.</div>';
-  return '<div class="ocards">' + rest.map(o => card(o, 'shop')).join('') + '</div>';
+  const clothes = OUTFITS.filter(o => !SHOP.has(o.id));
+  const gears   = GEAR.filter(g => !SHOP.has(g.id));
+  let h = '';
+  if (clothes.length)
+    h += '<div class="shead">👔 의상</div><div class="ocards">'
+       + clothes.map(o => card(o, 'shop')).join('') + '</div>';
+  if (gears.length)
+    h += '<div class="shead">🎒 장비 — 슬롯당 하나만 착용</div><div class="grid2">'
+       + gears.map(g => buyRow(g, SLOTS[g.slot] + ' · ' + boostLabel(g))).join('') + '</div>';
+  // 소비템은 몇 번이고 다시 산다
+  h += '<div class="shead">🧪 소모품 — 쓸 때마다 사라진다</div><div class="grid2">'
+     + USABLES.map(u => buyRow(u, u.d, SHOP.count(u.id))).join('') + '</div>';
+  if (!clothes.length && !gears.length)
+    h = '<div class="lnote">🛒 의상·장비는 전부 구매했다.</div>' + h;
+  return h;
+}
+function buyRow(it, desc, own){
+  const poor = SHOP.coins < it.p;
+  return '<button class="brow' + (poor ? ' poor' : '') + '"'
+    + ' onclick="window.__buy(\'' + it.id + '\')">'
+    + '<span class="bn">' + (it.icon ? it.icon + ' ' : '') + esc(it.n)
+    + (own !== undefined ? ' <i>보유 ' + own + '</i>' : '') + '</span>'
+    + '<span class="bd">' + desc + '</span>'
+    + '<em>🪙 ' + fmt(it.p) + '</em></button>';
 }
 function swatchHTML(){
   if (outfitId !== 'default')
@@ -1515,9 +1678,10 @@ let wave = 1, skipped = false, score = 0, caught = 0, typeSum = 0, typeCnt = 0;
 // 글자수 기준 기준시간(par)보다 빨리 치면 그만큼 가산점. 한글은 조합이 있어 par을 조금 더 준다.
 function typeBonus(kind, chars, sec){
   // fix 는 이미 채워진 코드에서 오타를 찾아 고치는 것이라 읽는 시간을 par에 포함
+  const g = (kind === 'fix' || kind === 'term') ? gearMul() : 1;   // 장비는 코딩 미션에만
   const par = kind === 'dish' ? 9.0
-            : kind === 'fix'  ? P.fixRead + chars*.12
-            : kind === 'term' ? 1.0 + chars*P.termK
+            : kind === 'fix'  ? (P.fixRead + chars*.12) * g
+            : kind === 'term' ? (1.0 + chars*P.termK) * g
                               : 1.0 + chars*.36;   // 슬랙은 전 팩 공통(한글)
   const cap = kind === 'dish' ? 500 : kind === 'fix' ? 700 : kind === 'term' ? 600 : 450;
   const ratio = Math.max(0, Math.min(1, (par - sec) / par));
@@ -1526,8 +1690,12 @@ function typeBonus(kind, chars, sec){
 let bestLv = +(localStorage.getItem('lot.bestLv') || 0);
 let bestScore = +(localStorage.getItem('lot.bestScore') || 0);
 const fmt = n => n.toLocaleString('ko-KR');
+/* levelFree — 사직서로 다시 시작한 레벨. 클리어·시간 보너스를 못 받는다.
+   야근한 날은 칼퇴 점수가 없다. startWave 에서 초기화하므로 다음 레벨엔 영향이 없다. */
+let levelFree = false, resignUsed = 0;
 function scoreBreak(){
-  const base = wave*500, timeB = Math.round(Math.max(0,timeLeft)*100);
+  const base = levelFree ? 0 : wave*500;
+  const timeB = levelFree ? 0 : Math.round(Math.max(0,timeLeft)*100);
   const taskB = tasks.length*200, cleanB = caught === 0 ? 1000 : 0;
   return {base, timeB, taskB, cleanB, typeB: typeSum,
           total: base+timeB+taskB+cleanB+typeSum};
@@ -1536,6 +1704,7 @@ let state = 'title';
 
 function startWave(w){
   const c = waveConfig(w);
+  levelFree = false;
   seedLevel(w);
   tasks = c.tasks.slice(); done = {}; tasks.forEach(t => done[t] = false); carry = false;
   pickDesks();
@@ -1740,8 +1909,23 @@ function submitTyping(){
 el.tInput.addEventListener('keydown', e => {
   e.stopPropagation();
   if (e.key === 'Enter'){ e.preventDefault(); submitTyping(); return; }
+  if (e.key === 'Tab'){ e.preventDefault(); useClaude(); return; }
   if (e.key === 'Escape' && typing.kind === 'term') endTyping(false);
 });
+/* 🤖 Claude Code — 소비템. 코딩 미션만 대신한다.
+   슬랙은 팀장이 눈치채고, 설거지는 AI 가 못 한다 (ITEMS-DESIGN.md). */
+function useClaude(){
+  if (!typing.active) return;
+  if (typing.kind !== 'fix' && typing.kind !== 'term'){
+    flash('🤖 Claude 는 💬슬랙 답장을 대신할 수 없다'); return;
+  }
+  if (SHOP.count('claude') <= 0){
+    flash('🤖 Claude Code 가 없다 — 🛒 상점에서 살 수 있다'); return;
+  }
+  SHOP.use('claude');
+  el.tInput.value = typing.target;
+  submitTyping();                                   // 성공 플래시가 ⚡보너스를 보여준다
+}
 el.tInput.addEventListener('blur', () => { if (typing.active) setTimeout(()=>el.tInput.focus(), 0); });
 
 /* ============================ 설거지 미니게임 ============================ */
@@ -1924,7 +2108,7 @@ function newRunSeed(){
 }
 function advance(){
   if (state === 'clear') wave++;
-  else { wave = 1; skipped = false; score = 0; newRunSeed(); }   // 새 판 = 새 시드
+  else { wave = 1; skipped = false; score = 0; resignUsed = 0; newRunSeed(); }   // 새 판 = 새 시드
   startWave(wave);
 }
 window.__adv = advance;
@@ -2116,7 +2300,18 @@ function update(dt){
               && player.y > ELEV.y - 26 && player.y < ELEV.y + ELEV.h + 26;
   if (phase === 'run'){
     timeLeft -= dt;
-    if (timeLeft <= 0){ phase = 'closed'; lose(); }
+    if (timeLeft <= 0){
+      phase = 'closed';
+      if (SHOP.use('resign')){        // 💼 사직서 — 그 날을 처음부터 다시
+        resignUsed++;
+        SFX.notif();
+        startWave(wave);              // 시드 유지 = 같은 배치 재도전
+        levelFree = true;             // 그 레벨은 클리어·시간 보너스 없음
+        flash('💼 사직서 제출 — ' + wave + '일차를 다시 시작한다 (남은 ' + SHOP.count('resign') + '장)');
+        return;
+      }
+      lose();
+    }
     else if (atDoor && player.stun <= 0 && !typing.active){
       const left = tasks.filter(t => !done[t]);
       if (!left.length){ phase = 'open'; SFX.ding(); flash('🛗 문이 열린다 — 탑승!'); }
@@ -2495,6 +2690,10 @@ function syncHUD(){
   if (carry) b.push(['warn','☕ 커피 들고 있음']);
   if (player.stun > 0) b.push(['bad','😱 정지']);
   if (phase === 'open') b.push(['on','🛗 문 열림']);
+  if (SHOP.count('claude') > 0 && typing.active && (typing.kind === 'fix' || typing.kind === 'term'))
+    b.push(['on','🤖 Tab — Claude ' + SHOP.count('claude') + '개']);
+  if (SHOP.count('resign') > 0) b.push(['warn','💼 사직서 ' + SHOP.count('resign') + '장']);
+  if (levelFree) b.push(['bad','💼 재도전 — 클리어·시간 보너스 없음']);
   if (!b.length) b.push(['','평상시']);
   setHTML(el.badges, 'badges', b.map(x => '<span class="badge '+x[0]+'">'+x[1]+'</span>').join(''));
 
