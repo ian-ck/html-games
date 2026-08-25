@@ -870,7 +870,7 @@ el.anonInput.addEventListener('keydown', e => {
 });
 
 function report(){
-  if (skipped) return;                       // ?day= 로 건너뛴 판은 기록하지 않는다
+  if (skipped || DEV) return;                // 건너뛴 판·개발 모드는 기록하지 않는다
   const lv = state === 'clear' ? wave : Math.max(0, wave-1);
   if (score <= 0) return;
   LB.submit({pid, nick, lv, score, seed:seedLabel(), role:P.role, lang:P.lang})
@@ -1639,6 +1639,14 @@ const PACKS = {
 };
 /* 팩 선택 — localStorage 에 남기고 ?pack= 으로 덮어쓸 수 있다.
    시드 파생식에는 절대 넣지 않는다. 같은 시드는 어느 팩에서든 같은 배치여야 한다. */
+/* 개발 모드 — ?dev=1 일 때만 디버그 훅과 테스트용 URL 파라미터가 산다.
+   **숨기는 게 방어가 아니다.** 정적 사이트라 소스를 읽으면 누구든 우회할 수 있다.
+   진짜 방어는 아래 두 가지다:
+     · DEV 인 런은 순위표에 제출하지 않는다 (report)
+     · DEV 인 런은 코인을 벌지 않는다 (win)
+   그래서 치트를 찾아내도 기록과 경제에는 영향이 없다. */
+const DEV = new URLSearchParams(location.search).get('dev') === '1';
+
 const PACK_KEYS = Object.keys(PACKS);
 let packKey = (new URLSearchParams(location.search).get('pack') || '').toLowerCase();
 if (!PACKS[packKey]) packKey = localStorage.getItem('lot.pack') || '';
@@ -2149,9 +2157,10 @@ function advance(){
   startWave(wave);
 }
 window.__adv = advance;
+/* 아래 훅들은 ?dev=1 일 때만 붙는다. __adv 는 오버레이 버튼이 호출하므로 항상 살아 있다. */
+if (DEV){
 window.__tp = (x,y) => { player.x = x; player.y = y; return [player.x, player.y]; };
 window.__clock = t => { timeLeft = t; return timeLeft; };
-/* 상점 테스트용 — 게임 화면에는 노출하지 않는다 (__clock 과 같은 부류) */
 window.__coin = n => { SHOP.coins = Math.max(0, n|0); SHOP.save(); refreshLook(); return SHOP.coins; };
 window.__giveAll = () => {
   OUTFITS.concat(GEAR).forEach(x => SHOP.owned.add(x.id));
@@ -2160,9 +2169,10 @@ window.__giveAll = () => {
   return {coins:SHOP.coins, 의상:OUTFITS.filter(o=>SHOP.has(o.id)).length,
           장비:GEAR.filter(g=>SHOP.has(g.id)).length, 소모품:Object.assign({}, SHOP.stock)};
 };
+}
 // 장비창이 열려 있으면 즉시 다시 그린다
 const refreshLook = () => { if (lookOpen) renderLookPane(); };
-window.__dbg = () => ({state, wave, phase,
+if (DEV) window.__dbg = () => ({state, wave, phase,
   pack:{key:packKey, role:P.role, lang:P.lang, ascii:P.ascii, termK:P.termK, fixRead:P.fixRead},
   outfit:{id:outfitId, look:Object.assign({}, look), base:Object.assign({}, baseLook), me:has('me')},
   lbTab:LBTABS[lbTab].n,
@@ -2382,7 +2392,7 @@ function win(){
   state = 'clear'; SFX.win(); endTyping(null, true);
   const br = scoreBreak();
   score += br.total;
-  const coin = skipped ? 0 : Math.floor(br.total / 1000);   // 런 총점/1000 과 사실상 같다
+  const coin = (skipped || DEV) ? 0 : Math.floor(br.total / 1000);   // 개발 모드는 안 번다
   SHOP.earn(coin);
   if (!skipped){
     if (wave > bestLv){ bestLv = wave; localStorage.setItem('lot.bestLv', bestLv); }
@@ -2850,9 +2860,11 @@ function loop(now){
   requestAnimationFrame(loop);
 }
 const QS = new URLSearchParams(location.search);
-const qsDay  = parseInt(QS.get('day'), 10);
-const qsGoto = (QS.get('goto') || '').toLowerCase();   // err | desk | locker | trash | wc | elev
-const qsBug  = QS.has('bug') ? parseInt(QS.get('bug'), 10) : -1;
+// day·goto·bug 는 유리한 위치·난이도를 주므로 ?dev=1 없이는 무시한다.
+// seed·pack 은 이득이 없어(같은 배치 공유 / 취향) 그대로 둔다.
+const qsDay  = DEV ? parseInt(QS.get('day'), 10) : NaN;
+const qsGoto = DEV ? (QS.get('goto') || '').toLowerCase() : '';
+const qsBug  = (DEV && QS.has('bug')) ? parseInt(QS.get('bug'), 10) : -1;
 const qsSeed = QS.get('seed');                          // ?seed=abc — 같은 배치 재현
 function boot(){
   buildLook();                 // 애셋이 캐시에서 즉시 온 경우까지 보장 (멱등)
