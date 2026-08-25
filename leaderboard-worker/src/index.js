@@ -6,6 +6,11 @@
  *          role/lang 이 없으면 전체(scores), 있으면 팩별(pack_scores) 순위다.
  * POST /score  { pid, nick, lv, score, seed, role, lang }  ->  { ok:true }
  *
+ * GET  /wallet?pid=...              ->  { rev, data }   (없으면 rev:0, data:null)
+ * POST /wallet { pid, rev, data }   ->  { ok:true, rev }
+ *   지갑·인벤토리. 서버는 아이템 카탈로그를 모른다 — 크기·형식만 보고 내용은 클라이언트가 해석한다.
+ *   목적은 무결성이 아니라 **영속성**이다 (캐시를 지워도 pid 만 있으면 되찾는다).
+ *
  * 설계 원칙
  *  - 개인정보를 저장하지 않는다. 닉네임은 클라이언트가 만든 랜덤 문자열이고,
  *    IP 는 레이트리밋용으로 해시만 남긴다.
@@ -34,6 +39,9 @@ const PID_RE = /^[0-9a-f]{16,80}$/;
 // 직군·언어 팩. 클라이언트의 PACKS 키와 짝이 맞아야 한다 — 한쪽만 늘리면 조용히 400 이 된다.
 const ROLES = ['dev', 'pm'];
 const LANGS = ['js', 'kotlin', 'swift', 'policy'];
+
+// 지갑 JSON 크기 상한. 의상·장비가 늘어도 여유 있는 값이다.
+const WALLET_MAX = 4096;
 
 // 레벨별 이론상 상한. 정상 플레이보다 넉넉하지만 999999 같은 값은 막는다.
 const maxScore = lv => 20000 * lv + 250 * lv * (lv + 1);
@@ -163,6 +171,50 @@ export default {
         await env.DB.prepare('DELETE FROM rate WHERE at < ?').bind(now - 86400000).run();
 
       return json({ ok: true }, 200, allow);
+    }
+
+    /* ── 지갑 조회 ── */
+    if (url.pathname === '/wallet' && req.method === 'GET') {
+      const pid = (url.searchParams.get('pid') || '').toLowerCase();
+      if (!PID_RE.test(pid)) return json({ error: 'bad pid' }, 400, allow);
+      const r = await env.DB.prepare('SELECT rev, data FROM wallet WHERE pid = ?').bind(pid).first();
+      return json({ rev: r?.rev || 0, data: r?.data || null }, 200, allow);
+    }
+
+    /* ── 지갑 저장 ── */
+    if (url.pathname === '/wallet' && req.method === 'POST') {
+      let body;
+      try { body = await req.json(); } catch { return json({ error: 'bad json' }, 400, allow); }
+
+      const pid  = String(body?.pid ?? '').toLowerCase();
+      const rev  = Math.trunc(Number(body?.rev));
+      const data = String(body?.data ?? '');
+
+      if (!PID_RE.test(pid))                              return json({ error: 'bad pid' }, 400, allow);
+      if (!Number.isFinite(rev) || rev < 1 || rev > 1e9)  return json({ error: 'bad rev' }, 400, allow);
+      if (data.length > WALLET_MAX)                       return json({ error: 'too big' }, 400, allow);
+      // 내용은 해석하지 않지만 JSON 은 맞아야 한다 — 쓰레기가 쌓이면 조회가 통째로 깨진다
+      try { const o = JSON.parse(data); if (!o || typeof o !== 'object' || Array.isArray(o)) throw 0; }
+      catch { return json({ error: 'bad data' }, 400, allow); }
+
+      const ip = 'w:' + await hash((req.headers.get('cf-connecting-ip') || '?') + '|' + (env.SALT || 'toegeun'));
+      const now = Date.now();
+      const last = await env.DB.prepare('SELECT at FROM rate WHERE ip = ?').bind(ip).first();
+      if (last && now - last.at < 3000) return json({ error: 'too fast' }, 429, allow);
+      await env.DB.prepare(
+        'INSERT INTO rate (ip, at) VALUES (?, ?) ON CONFLICT(ip) DO UPDATE SET at = excluded.at'
+      ).bind(ip, now).run();
+
+      // rev 가 서버 값 이상일 때만 덮어쓴다 — 오래 열려 있던 탭이 최신 지갑을 되돌리지 못하게
+      await env.DB.prepare(
+        `INSERT INTO wallet (pid, rev, data, at) VALUES (?, ?, ?, ?)
+         ON CONFLICT(pid) DO UPDATE SET
+           rev = excluded.rev, data = excluded.data, at = excluded.at
+         WHERE excluded.rev >= wallet.rev`
+      ).bind(pid, rev, data, now).run();
+
+      const cur = await env.DB.prepare('SELECT rev FROM wallet WHERE pid = ?').bind(pid).first();
+      return json({ ok: true, rev: cur?.rev || 0 }, 200, allow);
     }
 
     /* ── 익명게시판: 목록 ── */

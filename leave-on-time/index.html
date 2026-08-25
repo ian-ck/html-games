@@ -170,6 +170,19 @@
   #look .sw button.on{outline:2px solid var(--accent);outline-offset:1px}
   #look .lfoot{display:flex;align-items:center;gap:10px;padding:10px 14px;
     border-top:1px solid #262f40;background:#111621;font-size:11.5px;color:#5f687d}
+  #look #lookCode{display:none;padding:0 14px 12px;border-top:1px solid #262f40;background:#111621}
+  #look #lookCode p{margin:9px 0 6px;font-size:11.5px;color:#8f99ab;line-height:1.5}
+  #look #lookCode p.warn{color:var(--warn);font-size:11px;margin:6px 0}
+  #look #lookCode .crow{display:flex;gap:6px;align-items:center}
+  #look #lookCode code{flex:1;background:#0b0f16;border:1px solid #2c3444;border-radius:7px;
+    padding:7px 10px;font-size:12px;color:var(--accent);word-break:break-all;
+    font-family:"SFMono-Regular",ui-monospace,Menlo,monospace}
+  #look #lookCode input{flex:1;background:#0b0f16;border:1px solid #2c3444;color:var(--ink);
+    border-radius:7px;padding:7px 10px;font-size:12px;font-family:inherit;outline:none}
+  #look #lookCode input:focus{border-color:var(--accent)}
+  #look #lookCode button{background:#232c3d;border:1px solid #303a4e;color:#cfe0ff;border-radius:7px;
+    padding:7px 12px;font-size:11.5px;cursor:pointer;font-family:inherit;white-space:nowrap}
+  #look #lookCode button:hover{border-color:var(--accent);color:#fff}
   #look .lfoot button{background:#232c3d;border:1px solid #303a4e;color:#9aa3b4;border-radius:6px;
     padding:4px 10px;font-size:11.5px;cursor:pointer;font-family:inherit}
   #look .lfoot button:hover{color:#fff;border-color:var(--accent)}
@@ -398,7 +411,9 @@
           <div id="lookPane"></div>
         </div>
       </div>
-      <div class="lfoot"><span id="lookFoot"></span></div>
+      <div class="lfoot"><span id="lookFoot"></span>
+        <button onclick="window.__codePanel()">🔑 기기 이동</button></div>
+      <div id="lookCode"></div>
     </div>
 
     <div class="overlay" id="overlay"><div class="card" id="card"></div></div>
@@ -465,6 +480,7 @@ const el = {
   lookPane:document.getElementById('lookPane'), lookName:document.getElementById('lookName'),
   lookTabs:document.getElementById('lookTabs'), lookFoot:document.getElementById('lookFoot'),
   lookCoins:document.getElementById('lookCoins'),
+  lookCode:document.getElementById('lookCode'),
   dish:document.getElementById('dish'), dishBar:document.getElementById('dishBar'),
   dishMsg:document.getElementById('dishMsg'), dishTime:document.getElementById('dishTime'),
 };
@@ -566,7 +582,7 @@ function pidFromNick(n){
   return h;
 }
 const storedNick = localStorage.getItem('lot.nick') || '';
-let pid = localStorage.getItem('lot.pid') || '';
+let pid = localStorage.getItem('lot.pid') || '';   // __restore 로 갈아끼울 수 있다
 if (!/^[0-9a-f]{16}$/.test(pid)){
   pid = storedNick ? pidFromNick(storedNick) : makePid();
   localStorage.setItem('lot.pid', pid);
@@ -663,6 +679,56 @@ const LB = {
    그래서 dev:js 로 읽어준다. 서버 migrate-004 의 백필과 같은 기준이어야
    서버가 살아있을 때와 죽었을 때 같은 목록이 나온다.
    덕분에 legacy 행이 새 dev:js 기록과 같은 행으로 합쳐져 중복도 생기지 않는다. */
+/* ============ 지갑 동기화 ============
+   코인·아이템은 진행도라 브라우저 캐시와 함께 날아가면 안 된다. pid 기준으로 서버에 둔다.
+
+   ⚠️ 이것만으로는 반쪽이다 — pid 도 localStorage 에만 있어서 캐시를 지우면 pid 가 사라지고
+   서버 지갑에 다시 닿을 수 없다. 그래서 「기기 이동 코드」(__code / __restore)가 짝이다.
+
+   rev 는 단조 증가한다. 서버는 rev 가 자기 값 이상일 때만 덮어쓰므로
+   오래 열려 있던 탭이 최신 지갑을 되돌리지 못한다.
+   DEV 모드는 아예 동기화하지 않는다 — 치트 지갑이 서버에 올라가면 안 된다. */
+let walletT = null, walletBusy = false;
+function walletPush(){
+  if (!LB.remote || DEV) return;
+  clearTimeout(walletT);
+  walletT = setTimeout(async () => {          // 연속 구매를 한 번으로 모은다
+    if (walletBusy) { walletPush(); return; }
+    walletBusy = true;
+    try{
+      await fetch(LB.url + '/wallet', {method:'POST',
+        headers:{'content-type':'application/json'},
+        body:JSON.stringify({pid, rev:SHOP.rev, data:SHOP.blob()})});
+    }catch(e){}                                // 오프라인이어도 게임은 계속된다
+    walletBusy = false;
+  }, 1200);
+}
+async function walletPull(){
+  if (!LB.remote || DEV) return;
+  try{
+    const r = await fetch(LB.url + '/wallet?pid=' + encodeURIComponent(pid), {cache:'no-store'});
+    if (!r.ok) return;
+    const d = await r.json();
+    if (!d || !d.data) { if (SHOP.rev > 0) walletPush(); return; }   // 서버가 비었으면 내 걸 올린다
+    if ((d.rev || 0) <= SHOP.rev) return;                            // 로컬이 더 최신
+    const o = JSON.parse(d.data);
+    if (!SHOP.apply(o)) return;
+    SHOP.rev = d.rev;
+    localStorage.setItem('lot.rev', String(SHOP.rev));
+    if (o.outfit && OUTFITS.some(x => x.id === o.outfit) && SHOP.has(o.outfit)) outfitId = o.outfit;
+    if (o.baseLook && typeof o.baseLook === 'object')
+      for (const k of LOOK_KEYS)
+        if (Number.isInteger(o.baseLook[k]) && o.baseLook[k] >= 0 && o.baseLook[k] < RAMPS.length)
+          baseLook[k] = o.baseLook[k];
+    if (o.pack && PACKS[o.pack]){ packKey = o.pack; P = PACKS[packKey]; }
+    look = Object.assign({}, outfitLook(OUTFITS.find(x => x.id === outfitId) || OUTFITS[0]));
+    for (const k in thumbCache) delete thumbCache[k];
+    buildLook();
+    if (state === 'title') title();
+    flash('☁️ 서버에서 지갑을 불러왔다 — 🪙 ' + fmt(SHOP.coins));
+  }catch(e){}
+}
+
 function readBoard(){
   try{
     const b = JSON.parse(localStorage.getItem('lot.board') || '[]');
@@ -1145,11 +1211,39 @@ const SHOP = {
     }catch(e){}
     return o;
   })(),
+  rev: Math.max(0, parseInt(localStorage.getItem('lot.rev') || '0', 10) || 0),
   save(){
+    this.rev++;
+    localStorage.setItem('lot.rev',   String(this.rev));
     localStorage.setItem('lot.coins', String(this.coins));
     localStorage.setItem('lot.owned', JSON.stringify([...this.owned]));
     localStorage.setItem('lot.stock', JSON.stringify(this.stock));
     localStorage.setItem('lot.gear',  JSON.stringify(this.gear));
+    walletPush();                       // 디바운스되어 서버로 올라간다
+  },
+  /* 서버에 올릴 통 JSON. 서버는 내용을 해석하지 않는다 —
+     의상·장비를 추가해도 Worker 를 안 고쳐도 되게 하려는 것이다. */
+  blob(){
+    return JSON.stringify({
+      coins:this.coins, owned:[...this.owned], stock:this.stock, gear:this.gear,
+      outfit:outfitId, baseLook:baseLook, pack:packKey,
+    });
+  },
+  apply(o){                             // 서버에서 받은 지갑을 덮어쓴다
+    if (!o || typeof o !== 'object') return false;
+    if (Number.isFinite(o.coins)) this.coins = Math.max(0, Math.trunc(o.coins));
+    if (Array.isArray(o.owned))
+      this.owned = new Set(o.owned.filter(x => OUTFITS.concat(GEAR).some(g => g.id === x)));
+    this.owned.add('default');          // 기본 출근복은 항상 보유
+    if (o.stock && typeof o.stock === 'object')
+      for (const u of USABLES)
+        this.stock[u.id] = Number.isInteger(o.stock[u.id]) && o.stock[u.id] > 0 ? o.stock[u.id] : 0;
+    if (o.gear && typeof o.gear === 'object')
+      for (const k in SLOTS){
+        const g = GEAR.find(x => x.id === o.gear[k] && x.slot === k);
+        this.gear[k] = (g && this.owned.has(g.id)) ? g.id : null;
+      }
+    return true;
   },
   has(id){ return this.owned.has(id); },
   count(id){ return this.stock[id] || 0; },
@@ -1323,6 +1417,58 @@ window.__lookPick = (part, i) => {
   syncLookLabels();
 };
 window.__wearBase = () => { window.__wear('default'); window.__lookTab(3); };
+/* 기기 이동 코드 = pid 자체.
+   코인·아이템은 pid 기준으로 서버에 있는데 pid 는 localStorage 에만 있다.
+   그래서 pid 를 옮길 수단이 없으면 서버에 둔 의미가 없다.
+
+   ⚠️ 이건 사실상 비밀번호다. 남에게 보여주면 그 사람이 내 지갑과 순위표 기록을 가져간다.
+   화면에 그 경고를 같이 띄운다. */
+window.__codePanel = () => {
+  const open = el.lookCode.style.display !== 'block';
+  el.lookCode.style.display = open ? 'block' : 'none';
+  if (!open) return;
+  el.lookCode.innerHTML =
+      '<p><b>이 코드가 내 계정이다.</b> 다른 브라우저·기기에서 넣으면'
+    + ' 코인·아이템·순위표 기록을 그대로 이어받는다.</p>'
+    + '<div class="crow"><code id="myCode">' + esc(pid) + '</code>'
+    + '<button onclick="window.__copyCode()">복사</button></div>'
+    + '<p class="warn">🔒 남에게 보여주지 말 것 — 비밀번호와 같다.</p>'
+    + '<div class="crow"><input id="codeIn" placeholder="옮겨온 코드를 붙여넣기" maxlength="80">'
+    + '<button onclick="window.__restore()">불러오기</button></div>'
+    + '<p class="warn" id="codeMsg"></p>';
+  const i = document.getElementById('codeIn');
+  i.addEventListener('keydown', e => {
+    e.stopPropagation();                       // 게임 조작으로 새지 않게
+    if (e.key === 'Enter') window.__restore();
+  });
+};
+window.__copyCode = () => {
+  navigator.clipboard?.writeText(pid).then(
+    () => { const m = document.getElementById('codeMsg'); if (m) m.textContent = '✅ 복사했다'; },
+    () => {});
+};
+window.__restore = async () => {
+  const box = document.getElementById('codeIn'), msg = document.getElementById('codeMsg');
+  const v = (box ? box.value : '').trim().toLowerCase();
+  const say = t => { if (msg) msg.textContent = t; };
+  if (!/^[0-9a-f]{16,80}$/.test(v)){ say('❌ 코드 형식이 아니다 (16진수 16자 이상)'); return; }
+  if (v === pid){ say('이미 이 코드로 쓰고 있다'); return; }
+  say('불러오는 중…');
+  try{
+    const r = await fetch(LB.url + '/wallet?pid=' + encodeURIComponent(v), {cache:'no-store'});
+    const d = r.ok ? await r.json() : null;
+    if (!d || !d.data){ say('❌ 그 코드로 저장된 지갑이 없다'); return; }
+    pid = v;
+    localStorage.setItem('lot.pid', pid);
+    SHOP.rev = 0;                              // 서버 것이 무조건 최신이 되게
+    localStorage.setItem('lot.rev', '0');
+    await walletPull();
+    renderLookPane();
+    refreshBoard();
+    say('✅ 불러왔다 — 🪙 ' + fmt(SHOP.coins));
+  }catch(e){ say('❌ 서버에 연결하지 못했다'); }
+};
+
 window.__buy = id => {
   const o = findItem(id);
   if (!o) return;
@@ -2867,7 +3013,8 @@ const qsGoto = DEV ? (QS.get('goto') || '').toLowerCase() : '';
 const qsBug  = (DEV && QS.has('bug')) ? parseInt(QS.get('bug'), 10) : -1;
 const qsSeed = QS.get('seed');                          // ?seed=abc — 같은 배치 재현
 function boot(){
-  buildLook();                 // 애셋이 캐시에서 즉시 온 경우까지 보장 (멱등)
+  buildLook();
+  walletPull();                // 서버 지갑이 더 최신이면 덮어쓴다                 // 애셋이 캐시에서 즉시 온 경우까지 보장 (멱등)
   newRunSeed();
   if (qsDay >= 1 && qsDay <= 99){ wave = qsDay; skipped = qsDay > 1; startWave(wave); }
   else title();
