@@ -393,6 +393,24 @@ Claude 안내는 **입력창 힌트 줄**에 칩으로 띄운다(보유 중 + fi
 다만 **라벨은 저장값을 믿지 않고 `look` 에서 다시 유도한다** — 의상 개념이 없던 판(색만 저장)에서
 넘어온 기록도 이름이 맞아야 하기 때문이다.
 
+## localStorage 키
+
+브라우저에 남는 전부다. **이 중 `lot.pid` 가 사라지면 계정 자체가 사라진다** —
+서버의 지갑·순위표 기록에 다시 닿을 수 없다(「🔑 기기 이동 코드」 참고).
+
+| 키 | 내용 |
+|---|---|
+| `lot.pid` | 숨은 고유 ID. **이게 계정이다** |
+| `lot.nick` | 표시용 닉네임 |
+| `lot.bestLv` `lot.bestScore` | 개인 최고 기록 |
+| `lot.board` `lot.posts` | 서버가 죽었을 때 쓰는 순위표·게시판 폴백 |
+| `lot.pack` | 고른 직군·언어 팩 |
+| `lot.outfit` `lot.baseLook` | 착용 의상 · 기본 출근복 배색 |
+| `lot.coins` `lot.owned` `lot.stock` `lot.gear` | 지갑·인벤토리 |
+| `lot.rev` | 지갑 리비전. 서버 동기화의 기준 |
+
+`lot.pack` 을 뺀 나머지 지갑 관련 값은 `wallet` 테이블에도 통 JSON 으로 올라간다.
+
 ## 신원 모델
 
 ```
@@ -415,6 +433,8 @@ POST /score {pid,nick,lv,score,seed,role,lang}
 GET  /posts?n=30&before=<id>      커서 페이지네이션 (무한스크롤)
 POST /post  {pid,nick,body}
 POST /post/del {pid,id}           pid 일치하는 글만 삭제
+GET  /wallet?pid=...              { rev, data }  없으면 rev:0, data:null
+POST /wallet {pid,rev,data}       { ok:true, rev }  rev 가 서버 값 이상일 때만 덮어씀
 ```
 
 ### 순위표 탭
