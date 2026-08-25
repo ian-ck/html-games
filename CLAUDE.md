@@ -14,30 +14,87 @@ leave-on-time/assets/       스프라이트 (furniture 42 / characters 3 / 직�
 leaderboard-worker/         Cloudflare Worker + D1 (순위표·익명게시판 API)
 ```
 
-## 배포 — 두 갈래다
+## 배포
 
-| 대상 | 방법 | 결과 |
-|---|---|---|
-| 게임·허브 | `git push` (main) | GitHub Pages 자동 빌드, 약 20~60초 |
-| D1 스키마 | `wrangler d1 execute toegeun --remote --file=migrate-00N-*.sql` | 즉시 |
-| 순위표 API | `cd leaderboard-worker && wrangler deploy` | 즉시 |
+세 갈래고 **순서가 있다.** 대부분은 1·2를 건너뛰고 3만 하면 된다.
 
-**순서가 있다: 마이그레이션 → Worker → 게임.** 거꾸로 하면 새 Worker 가 없는 테이블에
-INSERT 해서 500 을 낸다. `scores` 쪽은 이미 커밋되어 있어 점수는 남고 응답만 실패하는
-**절반만 성공한 상태**가 되므로 증상이 헷갈린다.
+```
+① D1 마이그레이션  →  ② Worker  →  ③ 게임
+```
 
-- 게임: https://ian-ck.github.io/html-games/leave-on-time/
-- API: https://toegeun-leaderboard.ian-ck-games.workers.dev
+### 먼저: 뭐가 필요한지 판정한다
 
-**둘은 독립이다.** Worker만 배포하고 게임을 push하지 않으면(또는 반대) 스키마가 어긋나 조용히 깨진다.
-실제로 클라이언트가 `pid`를 보내는데 Worker가 옛 검증을 쓰고 있어 모든 점수 제출이 거부된 적이 있다.
-**양쪽을 바꿨으면 양쪽을 다 배포하고, 배포 후 실제 엔드포인트로 확인할 것.**
+```bash
+git diff --name-only origin/main..main | grep leaderboard-worker/ \
+  || echo "클라이언트 전용 — ③ git push 만 하면 된다"
+```
+
+| 바뀐 것 | 해야 할 것 |
+|---|---|
+| `leave-on-time/**` · `index.html` · `*.md` | ③ 만 |
+| `leaderboard-worker/src/**` | ② → ③ |
+| `leaderboard-worker/migrate-*.sql` | ① → ② → ③ |
+
+### ① D1 마이그레이션 — 스키마가 바뀐 경우만
+
+```bash
+cd leaderboard-worker
+wrangler d1 execute toegeun --remote --command "SELECT * FROM scores" --json > backup-scores.json
+wrangler d1 execute toegeun --remote --file=./migrate-00N-*.sql
+```
+
+**반드시 백업 먼저.** 백업 파일은 남의 기록이라 `.gitignore` 에 있다.
+
+### ② Worker
+
+```bash
+cd leaderboard-worker && wrangler deploy
+```
+
+### ③ 게임
+
+```bash
+git push        # GitHub Pages 자동 빌드, 20~60초
+```
+
+### 순서를 지켜야 하는 이유
+
+거꾸로 하면 **절반만 성공한 상태**가 되어 증상이 헷갈린다.
+
+- **마이그레이션 없이 Worker 를 올리면** — `/score` 가 `scores` INSERT 는 성공하고
+  없는 테이블에서 터진다. 점수는 남고 응답만 500 이다.
+- **Worker 없이 게임을 올리면** — 클라이언트가 보내는 새 필드를 옛 Worker 가 무시한다.
+  실제로 클라이언트가 `pid` 를 보내는데 Worker 가 옛 검증을 써서 **모든 점수 제출이 거부된** 적이 있다.
+- 반대로 **옛 클라이언트가 남아 있어도 깨지지 않게** 서버를 짜야 한다 (아래 캐시 10분 때문).
+  지금 `/score` 는 `role`·`lang` 이 없어도 받는다.
+
+### 배포 후 확인 — 반드시 실제 엔드포인트로
+
+```bash
+API=https://toegeun-leaderboard.ian-ck-games.workers.dev
+curl -s -o /dev/null -w "%{http_code}\n" "$API/top?role=bogus"     # 400 이면 신 Worker
+curl -s "$API/top?n=1"          | python3 -m json.tool | head -3    # 전체
+curl -s "$API/top?n=1&lang=js"  | python3 -m json.tool | head -3    # 팩 탭
+
+# 게임에 새 코드가 올라갔는지 (캐시 우회)
+curl -s "https://ian-ck.github.io/html-games/leave-on-time/index.html?cb=$RANDOM" \
+  | grep -c "찾을 문자열"
+```
+
+> ⚠️ `grep` 으로 확인할 땐 **오탐을 조심할 것.** `const DEV` 를 찾았더니
+> 팩 시스템의 `DEV_COMMON` 에 걸려 "이미 배포됨"으로 오독한 적이 있다. 충분히 긴 문자열로 볼 것.
 
 ### ⚠️ 캐시 10분
 
 GitHub Pages 응답이 `cache-control: max-age=600`이다. 배포가 끝나도 브라우저는 최대 10분간 옛 파일을 쓴다.
 "푸시했는데 왜 그대로지?"의 대부분이 이것. 확인할 땐 **`Cmd+Shift+R`** 또는 주소에 `?x=1`.
 남에게 공유할 땐 10분 뒤에.
+
+**이 10분 때문에 옛 클라이언트와 새 Worker 가 반드시 공존한다.** 서버 검증을 바꿀 땐
+옛 필드 구성도 받아들이는지 확인할 것.
+
+- 게임: https://ian-ck.github.io/html-games/leave-on-time/
+- API: https://toegeun-leaderboard.ian-ck-games.workers.dev
 
 ## 로컬 실행
 
