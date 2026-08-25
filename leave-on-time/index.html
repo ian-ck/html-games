@@ -655,6 +655,7 @@ const LBTABS = [
   // 기획자는 lang 이 'policy' 하나뿐이지만 role 로 거른다 — 나중에 도메인(커머스·물류·정산)이
   // 늘어도 이 탭이 전부 모아준다. 개발자 탭은 세 언어의 합집합이라 중복이어서 뺐다.
   {q:'role=pm',     n:'📋 기획자',  f:r => r.role === 'pm'},
+  {q:'role=design', n:'🎨 디자이너', f:r => r.role === 'design'},
 ];
 let lbTab = 0;
 const LB = {
@@ -1144,18 +1145,18 @@ const OUTFITS = [
    par(⚡보너스 기준시간)을 늘려주는 방식이라 상한(fix 700 / term 600)이 그대로 걸려
    무한히 세지지 않는다. 합산 후 GEAR_CAP 으로 한 번 더 자른다. */
 const GEAR = [
-  {id:'w_apple',  n:'애플워치',  slot:'watch',  p:160, boost:{swift:.25, js:.12, policy:.12}},
-  {id:'w_sam',    n:'삼성워치',  slot:'watch',  p:160, boost:{kotlin:.25, js:.12, policy:.12}},
-  {id:'w_garmin', n:'가민워치',  slot:'watch',  p:120, boost:{js:.10, kotlin:.10, swift:.10, policy:.10}},
-  {id:'l_mac',    n:'맥북',      slot:'laptop', p:400, boost:{swift:.30, js:.15, policy:.15}},
-  {id:'l_think',  n:'씽크패드',  slot:'laptop', p:400, boost:{kotlin:.30, js:.15, policy:.15}},
-  {id:'l_gram',   n:'그램',      slot:'laptop', p:360, boost:{policy:.30, js:.10, kotlin:.10, swift:.10}},
-  {id:'t_ipad',   n:'아이패드',  slot:'tablet', p:280, boost:{swift:.25, js:.12, policy:.10}},
-  {id:'t_galtab', n:'갤탭',      slot:'tablet', p:280, boost:{kotlin:.25, js:.12, policy:.12}},
-  {id:'t_fold',   n:'갤럭시 폴드',slot:'tablet', p:320, boost:{policy:.30, kotlin:.10, js:.06}},
-  {id:'e_airpods',n:'에어팟',    slot:'buds',   p:180, boost:{swift:.10, js:.05, policy:.20}},
-  {id:'e_buds',   n:'갤럭시 버즈',slot:'buds',  p:180, boost:{kotlin:.10, js:.05, policy:.20}},
-  {id:'e_head',   n:'오버이어 헤드셋', slot:'buds', p:320, boost:{policy:.25, js:.10, kotlin:.10, swift:.10}},
+  {id:'w_apple',  n:'애플워치',  slot:'watch',  p:160, boost:{swift:.25, js:.12, policy:.12, design:.12}},
+  {id:'w_sam',    n:'삼성워치',  slot:'watch',  p:160, boost:{kotlin:.25, js:.12, policy:.12, design:.10}},
+  {id:'w_garmin', n:'가민워치',  slot:'watch',  p:120, boost:{js:.10, kotlin:.10, swift:.10, policy:.10, design:.10}},
+  {id:'l_mac',    n:'맥북',      slot:'laptop', p:400, boost:{swift:.30, js:.15, policy:.15, design:.30}},
+  {id:'l_think',  n:'씽크패드',  slot:'laptop', p:400, boost:{kotlin:.30, js:.15, policy:.15, design:.10}},
+  {id:'l_gram',   n:'그램',      slot:'laptop', p:360, boost:{policy:.30, js:.10, kotlin:.10, swift:.10, design:.12}},
+  {id:'t_ipad',   n:'아이패드',  slot:'tablet', p:280, boost:{swift:.25, js:.12, policy:.10, design:.30}},
+  {id:'t_galtab', n:'갤탭',      slot:'tablet', p:280, boost:{kotlin:.25, js:.12, policy:.12, design:.15}},
+  {id:'t_fold',   n:'갤럭시 폴드',slot:'tablet', p:320, boost:{policy:.30, kotlin:.10, js:.06, design:.10}},
+  {id:'e_airpods',n:'에어팟',    slot:'buds',   p:180, boost:{swift:.10, js:.05, policy:.20, design:.15}},
+  {id:'e_buds',   n:'갤럭시 버즈',slot:'buds',  p:180, boost:{kotlin:.10, js:.05, policy:.20, design:.12}},
+  {id:'e_head',   n:'오버이어 헤드셋', slot:'buds', p:320, boost:{policy:.25, js:.10, kotlin:.10, swift:.10, design:.25}},
 ];
 const SLOTS = {watch:'⌚ 워치', laptop:'💻 노트북', tablet:'📱 태블릿', buds:'🎧 이어폰'};
 const GEAR_CAP = 1.6;                       // par 배율 상한
@@ -1780,6 +1781,56 @@ const PACKS = {
      err:"3.2절은 배송 정책입니다 — 결제 취소는 4.1절입니다", tok:"3.2절 → 4.1절"},
     {bad:"배송 마감 시각: 오후 2시 (12:00)", fix:"배송 마감 시각: 오후 2시 (14:00)",
      err:"표기된 두 시각이 다릅니다 — 24시간 표기를 맞춰주세요", tok:"12:00 → 14:00"},
+  ],
+},
+/* 디자이너 — 퇴근 전 「레이어 정리」, 검수는 「QA 제보」.
+   term 은 이름(Button/Primary/Hover), fix 는 숫자·규칙이라 두 미션이 안 겹친다.
+   CSS 속성 오타는 넣지 않는다 — 그건 퍼블리셔 일이지 디자이너가 치는 게 아니다.
+   본문은 전부 영문이라 ascii:true. 증상만 한글이다(표시용이라 타이핑 대상이 아니다). */
+'design:design': {
+  role:'design', roleName:'디자이너', lang:'design', langName:'디자인', icon:'🎨',
+  ascii:true,
+  termK:.40,                   // 대문자 shift + 슬래시가 많아 글자당 타수가 높다. ASCII 명령어(.30)보다 더 준다
+  fixRead:4.5,                 // 대비·터치영역 같은 '디자이너만 아는 수치'를 떠올리는 시간
+  termTitle:'Figma — 결제 컴포넌트',
+  fixTitle:'Button/Primary — 검수 반려',
+  labels:{commit:'레이어 정리', error:'디자인 수정'},
+  doing :{commit:'이름 붙이는 중', error:'시안 고치는 중'},
+  newAt :{2:'⌨️ 이름 없는 레이어를 두고 가면 안 되죠 — 그리고 💬 슬랙이 오면 답장을 타이핑해야 한다.',
+          5:'🚨 QA 반려! 빨간 모니터를 찾아 시안을 고쳐야 한다. 🕴️ 임원 등장, 👀 팀장 시선 3단 스캔.'},
+  commits:[
+    'Button/Primary/Hover',
+    'Card/Product/Sold-out',
+    'Modal/Confirm/Default',
+    'Input/Search/Focused',
+    'Chip/Filter/Selected',
+    'ic_cart_24.svg',
+  ],
+  bugs:[
+    {bad:"contrast: 3.2:1",            fix:"contrast: 4.5:1",
+     err:"QA — 저시력 사용자가 본문을 못 읽습니다. 본문 대비 하한은 4.5:1 입니다",      tok:"3.2 → 4.5"},
+    {bad:"tap-area: 36px",             fix:"tap-area: 44px",
+     err:"QA — 아이폰 SE 에서 버튼이 안 눌립니다. 터치 영역 하한은 44px 입니다",       tok:"36 → 44"},
+    {bad:"background: #ffffff",        fix:"background: color-bg-base",
+     err:"QA — 다크모드에서 배경이 흰색으로 남습니다. 하드코딩 대신 토큰을 쓰세요",      tok:"#ffffff → color-bg-base"},
+    {bad:"spacing-5: 18px",            fix:"spacing-5: 20px",
+     err:"QA — 카드 간격이 그리드에서 어긋납니다. 스페이싱 스케일은 4의 배수입니다",     tok:"18 → 20"},
+    {bad:"text-body-md: 13px",         fix:"text-body-md: 16px",
+     err:"QA — 본문이 캡션보다 작아 보입니다. 본문 기본은 16px 입니다",               tok:"13 → 16"},
+    {bad:"icon: ic_cart_20",           fix:"icon: ic_cart_24",
+     err:"QA — 장바구니 아이콘만 작습니다. 이 화면은 24 세트입니다",                  tok:"20 → 24"},
+    {bad:"focus-ring: none",           fix:"focus-ring: 2px",
+     err:"QA — 키보드로 이동할 때 지금 어디인지 안 보입니다. 포커스 링은 2px 입니다",   tok:"none → 2px"},
+    {bad:"disabled: opacity 0.9",      fix:"disabled: opacity 0.4",
+     err:"QA — 비활성 버튼이 눌리는 줄 압니다. 비활성 투명도는 0.4 입니다",           tok:"0.9 → 0.4"},
+    {bad:"transition: 600ms",          fix:"transition: 200ms",
+     err:"QA — 화면 전환이 답답합니다. 표준 전환은 200ms 입니다",                    tok:"600 → 200"},
+    {bad:"shadow: rgba(0, 0, 0, .12",  fix:"shadow: rgba(0, 0, 0, .12)",
+     err:"QA — 그림자가 아예 안 들어갑니다",                                       tok:") 닫는 괄호"},
+    {bad:"radius-lg: 10px",            fix:"radius-lg: 12px",
+     err:"QA — 카드 모서리가 버튼과 안 맞습니다. lg 는 12px 입니다",                 tok:"10 → 12"},
+    {bad:"Modal z-index: 10",          fix:"Modal z-index: 1000",
+     err:"QA — 모달이 헤더 뒤로 숨습니다. 모달 레이어는 1000 입니다",                tok:"10 → 1000"},
   ],
 },
 };

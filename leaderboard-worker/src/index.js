@@ -37,8 +37,8 @@ const NICK_RE = /^[0-9A-Za-z가-힣]{2,10}#[0-9a-f]{3}$/;
 const PID_RE = /^[0-9a-f]{16,80}$/;
 
 // 직군·언어 팩. 클라이언트의 PACKS 키와 짝이 맞아야 한다 — 한쪽만 늘리면 조용히 400 이 된다.
-const ROLES = ['dev', 'pm'];
-const LANGS = ['js', 'kotlin', 'swift', 'policy'];
+const ROLES = ['dev', 'pm', 'design'];
+const LANGS = ['js', 'kotlin', 'swift', 'policy', 'design'];
 
 // 지갑 JSON 크기 상한. 의상·장비가 늘어도 여유 있는 값이다.
 const WALLET_MAX = 4096;
