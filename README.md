@@ -58,6 +58,7 @@
 | 🟪 Kotlin | `./gradlew test` | `pritnln(items.size)` → `Unresolved reference` |
 | 🟧 Swift | `swift test` | `pirnt(items.count)` → `Cannot find 'pirnt' in scope` |
 | 📋 기획자 | `[확정] 쿠폰 정책 v2.1` | 정책 문장 + 제보 → 틀린 곳 한 군데 수정 (한글 입력) |
+| 🎨 디자이너 | `Button/Primary/Hover` | QA 제보 → 대비·터치영역·토큰 같은 **수치·규칙** 수정 |
 
 기획자 🚨 예시 — 정책문이 미리 채워져 있고 **제보만** 온다. 정답은 안 보여준다.
 
