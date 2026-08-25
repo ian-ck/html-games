@@ -1058,25 +1058,28 @@ const OUTFITS = [
    배분 원칙 — 새 장비를 넣을 때 반드시 지킬 것:
      1. **모든 팩이 모든 슬롯에서 0 보다 큰 값을 받아야 한다.** 하나라도 0 이면
         그 팩은 그 슬롯에 선택지가 없다(죽은 슬롯). 아래 테스트가 이걸 잡는다.
-     2. **JS 는 어떤 브랜드를 사도 이득이 같다** — 잘못 사는 일이 없는 대신 상한에 못 닿는다.
-     3. **전문 팩(Kotlin·Swift·기획자)은 자기 생태계에서만 크게 받고 상한까지 간다.**
+     2. **JS 는 언제나 중간값이다** — 애플 제품이면 Swift 최고 · JS 중간 · Kotlin 0,
+        삼성 제품이면 그 반대. 대략 전문 팩의 절반을 준다.
+        잘못 사는 일이 없는 대신 상한에 못 닿는다.
+     3. **전문 팩(Kotlin·Swift)은 자기 생태계에서만 크게 받고 상한까지 간다.**
         Kotlin 이 애플워치를 사면 0 이다. 그게 선택의 무게다.
      4. 기획자는 생태계 종속이 없다 — 워치는 캘린더, 노트북은 문서 도구라 브랜드를 안 가린다.
-        대신 최고치는 전용 장비(그램·아이패드)가 갖는다.
+        대신 최고치는 전용 장비(그램 · 갤럭시 폴드 · 헤드셋)가 갖는다.
    par(⚡보너스 기준시간)을 늘려주는 방식이라 상한(fix 700 / term 600)이 그대로 걸려
    무한히 세지지 않는다. 합산 후 GEAR_CAP 으로 한 번 더 자른다. */
 const GEAR = [
   {id:'w_apple',  n:'애플워치',  slot:'watch',  p:160, boost:{swift:.25, js:.12, policy:.12}},
   {id:'w_sam',    n:'삼성워치',  slot:'watch',  p:160, boost:{kotlin:.25, js:.12, policy:.12}},
-  {id:'w_garmin', n:'가민워치',  slot:'watch',  p:120, boost:{js:.12, kotlin:.10, swift:.10, policy:.10}},
-  {id:'l_mac',    n:'맥북',      slot:'laptop', p:400, boost:{swift:.30, js:.18, policy:.15}},
-  {id:'l_think',  n:'씽크패드',  slot:'laptop', p:400, boost:{kotlin:.30, js:.18, policy:.15}},
-  {id:'l_gram',   n:'그램',      slot:'laptop', p:360, boost:{policy:.30, js:.18, kotlin:.10, swift:.10}},
-  {id:'t_ipad',   n:'아이패드',  slot:'tablet', p:280, boost:{policy:.25, swift:.12, js:.10}},
-  {id:'t_galtab', n:'갤탭',      slot:'tablet', p:280, boost:{kotlin:.12, policy:.20, js:.10}},
-  {id:'e_airpods',n:'에어팟',    slot:'buds',   p:180, boost:{swift:.10, js:.12, policy:.20}},
-  {id:'e_buds',   n:'갤럭시 버즈',slot:'buds',  p:180, boost:{kotlin:.10, js:.12, policy:.20}},
-  {id:'e_head',   n:'오버이어 헤드셋', slot:'buds', p:320, boost:{policy:.25, js:.12, kotlin:.10, swift:.10}},
+  {id:'w_garmin', n:'가민워치',  slot:'watch',  p:120, boost:{js:.10, kotlin:.10, swift:.10, policy:.10}},
+  {id:'l_mac',    n:'맥북',      slot:'laptop', p:400, boost:{swift:.30, js:.15, policy:.15}},
+  {id:'l_think',  n:'씽크패드',  slot:'laptop', p:400, boost:{kotlin:.30, js:.15, policy:.15}},
+  {id:'l_gram',   n:'그램',      slot:'laptop', p:360, boost:{policy:.30, js:.10, kotlin:.10, swift:.10}},
+  {id:'t_ipad',   n:'아이패드',  slot:'tablet', p:280, boost:{swift:.25, js:.12, policy:.10}},
+  {id:'t_galtab', n:'갤탭',      slot:'tablet', p:280, boost:{kotlin:.25, js:.12, policy:.12}},
+  {id:'t_fold',   n:'갤럭시 폴드',slot:'tablet', p:320, boost:{policy:.30, kotlin:.10, js:.06}},
+  {id:'e_airpods',n:'에어팟',    slot:'buds',   p:180, boost:{swift:.10, js:.05, policy:.20}},
+  {id:'e_buds',   n:'갤럭시 버즈',slot:'buds',  p:180, boost:{kotlin:.10, js:.05, policy:.20}},
+  {id:'e_head',   n:'오버이어 헤드셋', slot:'buds', p:320, boost:{policy:.25, js:.10, kotlin:.10, swift:.10}},
 ];
 const SLOTS = {watch:'⌚ 워치', laptop:'💻 노트북', tablet:'📱 태블릿', buds:'🎧 이어폰'};
 const GEAR_CAP = 1.6;                       // par 배율 상한
