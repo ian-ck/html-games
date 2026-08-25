@@ -252,6 +252,10 @@
   #typing.shake{animation:shk .3s}
   @keyframes shk{0%,100%{transform:translateX(-50%)}25%{transform:translateX(calc(-50% - 7px))}75%{transform:translateX(calc(-50% + 7px))}}
   #typing .enter{float:right;font-size:10.5px;opacity:.75}
+  /* 🤖 Claude 안내 — 보유 중일 때만 뜬다. 사이드 배지는 타이핑 중에 눈이 안 가서 여기 붙였다. */
+  #typing .tabk{float:right;margin-left:9px;font-size:10.5px;font-weight:700;
+    color:#0b0f16;background:var(--accent);border-radius:5px;padding:1px 7px}
+  #typing.fix .tabk{background:#ffb54d}
   #typing.slack{background:#f7f7f8;color:#1d1c1d}
   #typing.slack .head{background:#4a154b;color:#fff}
   #typing.slack .target{color:#1d1c1d}
@@ -1853,7 +1857,7 @@ function startTyping(kind, text, limit, msgText, prefill, tok){
     : kind === 'fix'
     ? '커서를 옮겨 ' + (P.ascii ? '오타를' : '정책을') + ' 고치고 Enter — 빨리 고칠수록 ⚡보너스 (Esc — 나중에)'
     : '그대로 입력 — 빨리 칠수록 ⚡보너스 (Esc — 나중에)')
-    + '<span class="enter">Enter 전송</span>';
+    + hintTail();
   // fix 모드는 정답을 보여주지 않는다 — 버그 코드가 입력창에 미리 채워져 있다
   el.tTarget.style.display = kind === 'fix' ? 'none' : 'block';
   el.tInput.value = prefill || '';
@@ -1863,6 +1867,15 @@ function startTyping(kind, text, limit, msgText, prefill, tok){
   el.tBar.parentElement.style.display = limit > 0 ? 'block' : 'none';
   for (const k in keys) keys[k] = false;
   setTimeout(() => { el.tInput.focus(); try{ el.tInput.setSelectionRange(0,0); }catch(e){} }, 0);
+}
+/* 힌트 줄 오른쪽 꼬리. Enter 안내 + (있을 때만) Claude 안내.
+   힌트를 innerHTML 로 덮어쓰는 곳이 셋(시작 / 6초 힌트 / IME 경고)이라
+   각자 붙이면 반드시 한 곳에서 빠진다. 그래서 여기서만 만든다. */
+function hintTail(){
+  const n = SHOP.count('claude');
+  const usable = n > 0 && (typing.kind === 'fix' || typing.kind === 'term');
+  return (usable ? '<span class="tabk">Tab — 🤖 Claude ' + n + '</span>' : '')
+       + '<span class="enter">Enter 전송</span>';
 }
 function paintTarget(v){
   const t = typing.target;
@@ -1904,7 +1917,7 @@ el.tInput.addEventListener('input', () => {
       if (!typing.imeWarned){
         typing.imeWarned = true;
         el.tHint.innerHTML = '⌨️ <b>한/영 키를 눌러 영문으로</b> 바꿔주세요 — 코드는 영문만 입력됩니다'
-          + '<span class="enter">Enter 전송</span>';
+          + hintTail();
       }
     }
   }
@@ -2128,6 +2141,17 @@ function advance(){
 window.__adv = advance;
 window.__tp = (x,y) => { player.x = x; player.y = y; return [player.x, player.y]; };
 window.__clock = t => { timeLeft = t; return timeLeft; };
+/* 상점 테스트용 — 게임 화면에는 노출하지 않는다 (__clock 과 같은 부류) */
+window.__coin = n => { SHOP.coins = Math.max(0, n|0); SHOP.save(); refreshLook(); return SHOP.coins; };
+window.__giveAll = () => {
+  OUTFITS.concat(GEAR).forEach(x => SHOP.owned.add(x.id));
+  for (const u of USABLES) SHOP.stock[u.id] = 9;
+  SHOP.save(); refreshLook();
+  return {coins:SHOP.coins, 의상:OUTFITS.filter(o=>SHOP.has(o.id)).length,
+          장비:GEAR.filter(g=>SHOP.has(g.id)).length, 소모품:Object.assign({}, SHOP.stock)};
+};
+// 장비창이 열려 있으면 즉시 다시 그린다
+const refreshLook = () => { if (lookOpen) renderLookPane(); };
 window.__dbg = () => ({state, wave, phase,
   pack:{key:packKey, role:P.role, lang:P.lang, ascii:P.ascii, termK:P.termK, fixRead:P.fixRead},
   outfit:{id:outfitId, look:Object.assign({}, look), base:Object.assign({}, baseLook), me:has('me')},
@@ -2196,7 +2220,7 @@ function update(dt){
     if (typing.kind === 'fix' && !typing.hinted && typing.elapsed > 6 && typing.tok){
       typing.hinted = true;
       el.tHint.innerHTML = '💡 힌트 — <b>' + typing.tok.replace(/&/g,'&amp;').replace(/</g,'&lt;')
-        + '</b> 부분을 보세요<span class="enter">Enter 전송</span>';
+        + '</b> 부분을 보세요' + hintTail();
     }
     const liveB = typeBonus(typing.kind, typing.target.length, typing.elapsed);
     el.tTime.textContent = typing.elapsed.toFixed(1) + '초'

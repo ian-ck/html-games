@@ -106,6 +106,8 @@ __dbg()          // 상태 전체 (플레이어·NPC·시드·pid·자리 배치
 __tp(x, y)       // 순간이동 — 결정적 테스트의 핵심
 __clock(초)      // 마감 시간 조작
 __adv()          // 다음 레벨 / 재시작
+__coin(n)        // 코인 지급
+__giveAll()      // 의상·장비 전부 + 소모품 9개씩 — 상점/효과 테스트용
 ```
 
 URL 파라미터: `?day=6` `?goto=err|sink|cup|desk|locker|trash|wc|elev` `&bug=0~11` `?seed=abc`
