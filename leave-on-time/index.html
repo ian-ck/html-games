@@ -214,6 +214,8 @@
   .btn{margin-top:12px;background:var(--accent);color:#08130d;font-weight:800;border:0;
        border-radius:10px;padding:11px 22px;font-size:14px;cursor:pointer;font-family:inherit}
   .btn:hover{filter:brightness(1.08)}
+  .btn.ghost{margin-left:8px;background:#232c3d;color:#cfe0ff;border:1px solid #3a4560}
+  .btn.ghost:hover{border-color:var(--accent)}
   .big{font-size:40px;margin:4px 0}
   .newthing{color:var(--warn);font-size:13.5px;margin-top:8px}
   .tasklist{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin:10px 0;font-size:12.5px;color:var(--dim)}
@@ -794,7 +796,11 @@ function ago(t){
   if (d < 86400) return Math.floor(d/3600) + '시간 전';
   return Math.floor(d/86400) + '일 전';
 }
+/* 모달을 열면 안 되는 상태. 'resign' 은 결정 화면이라 여기서 상점을 열면
+   화면에 찍힌 '남은 N장' 과 실제 보유량이 어긋난다. */
+const locked = () => state === 'playing' || state === 'resign';
 window.__board = open => {
+  if (open && locked()) return;
   el.anon.style.display = open ? 'flex' : 'none';
   if (open){ el.anonInput.value = ''; el.anonCount.textContent = '0/140'; loadPosts(true); el.anonInput.focus(); }
 };
@@ -1277,7 +1283,7 @@ function outfitThumb(o){
    (setHTML 주석 참고). */
 let lookOpen = false, lookT = 0, lookTab = 0;
 window.__look = open => {
-  if (open && state === 'playing') return;      // 플레이 중에는 못 연다
+  if (open && locked()) return;                 // 플레이 중·사직서 선택 중에는 못 연다
   lookOpen = !!open;
   el.look.style.display = lookOpen ? 'flex' : 'none';
   if (lookOpen){
@@ -2118,6 +2124,10 @@ addEventListener('keydown', e => {
   if (e.key) keys[e.key.toLowerCase()] = true;
   if (c === 'KeyM'){ muted = !muted; flash(muted ? '🔇 음소거' : '🔊 소리 켜짐'); }
   if (c === 'KeyR' && state === 'playing') startWave(wave);
+  if (state === 'resign'){        // 선택 화면 — 버튼으로만 진행한다
+    if (c === 'Escape') window.__resign(0);
+    return;
+  }
   if ((c === 'Space' || c === 'Enter') && state !== 'playing' && state !== 'loading') advance();
 });
 addEventListener('keyup', e => {
@@ -2340,14 +2350,8 @@ function update(dt){
     timeLeft -= dt;
     if (timeLeft <= 0){
       phase = 'closed';
-      if (SHOP.use('resign')){        // 💼 사직서 — 그 날을 처음부터 다시
-        resignUsed++;
-        SFX.notif();
-        startWave(wave);              // 시드 유지 = 같은 배치 재도전
-        levelFree = true;             // 그 레벨은 클리어·시간 보너스 없음
-        flash('💼 사직서 제출 — ' + wave + '일차를 다시 시작한다 (남은 ' + SHOP.count('resign') + '장)');
-        return;
-      }
+      // 💼 사직서는 200코인짜리다. 물어보지 않고 태우지 않는다.
+      if (SHOP.count('resign') > 0){ askResign(); return; }
       lose();
     }
     else if (atDoor && player.stun <= 0 && !typing.active){
@@ -2408,6 +2412,36 @@ function win(){
     +   (n.bosses>1 ? ' · 팀장 <b style="color:var(--warn)">2명</b>' : '') + '</p>'
     + '<button class="btn" onclick="window.__adv()">LV.'+(wave+1)+' 시작 (Space)</button>');
 }
+/* 야근 확정 직전 — 사직서를 낼지 고른다.
+   state 를 'resign' 으로 두는 이유: 'playing' 이 아니어야 게임 루프가 멈추고,
+   'gameover' 가 아니어야 lose() 의 정산·기록 제출이 아직 안 일어난다. */
+function askResign(){
+  state = 'resign';
+  SFX.fail();
+  endTyping(null, true);
+  const left = tasks.filter(t => !done[t]);
+  showOverlay('<div class="big">🌙</div><h2>퇴근 마감 시간이 지났다</h2>'
+    + (left.length ? '<p>못 끝낸 일: '+left.map(t=>TASKS[t].icon+' '+tLabel(t)).join(' · ')+'</p>'
+                   : '<p>준비는 다 했는데... 엘베 앞까지 못 갔다.</p>')
+    + '<p style="color:var(--warn);font-size:15px">💼 사직서를 내면 <b>'+wave+'일차를 처음부터 다시</b> 시작한다.</p>'
+    + '<p style="font-size:12.5px">같은 배치로 재도전한다. 단 그 날은 '
+    + '<b style="color:var(--bad)">클리어 보너스와 시간 보너스를 받지 못한다</b> — 야근한 날은 칼퇴 점수가 없다.<br>'
+    + '지금까지 누적한 <b>'+fmt(score)+'점</b>은 그대로 유지된다.</p>'
+    + '<button class="btn" onclick="window.__resign(1)">💼 사직서 제출 — 남은 '+SHOP.count('resign')+'장</button>'
+    + '<button class="btn ghost" onclick="window.__resign(0)">🌙 그냥 야근한다</button>');
+}
+window.__resign = yes => {
+  if (state !== 'resign') return;
+  if (!yes || !SHOP.use('resign')){ lose(); return; }
+  resignUsed++;
+  SFX.notif();
+  hideOverlay();
+  state = 'playing';
+  startWave(wave);                // 시드 유지 = 같은 배치 재도전
+  levelFree = true;               // 그 레벨은 클리어·시간 보너스 없음
+  flash('💼 사직서 제출 — ' + wave + '일차 재도전 (남은 ' + SHOP.count('resign') + '장)');
+};
+
 function lose(){
   state = 'gameover'; SFX.fail(); endTyping(null, true);
   const cleared = wave - 1;
@@ -2666,10 +2700,10 @@ function syncHUD(){
   if (!nickEditing)
     setHTML(el.nick, 'nick',
         '<button class="board" onclick="window.__look(1)"'
-      + (state === 'playing' ? ' disabled title="게임이 끝난 뒤에 열 수 있다"' : ' title="캐릭터 외형"')
+      + (locked() ? ' disabled title="게임이 끝난 뒤에 열 수 있다"' : ' title="캐릭터 외형"')
       + '>👕 장비</button>'
       + '<button class="board" onclick="window.__board(1)"'
-      + (state === 'playing' ? ' disabled title="게임이 끝난 뒤에 열 수 있다"' : ' title="익명게시판"')
+      + (locked() ? ' disabled title="게임이 끝난 뒤에 열 수 있다"' : ' title="익명게시판"')
       + '>💬 게시판</button>'
       + '나는 <b>' + esc(nick) + '</b>'
       + '<button onclick="window.__editNick()" title="닉네임 직접 입력">✏️</button>'
