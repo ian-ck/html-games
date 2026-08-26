@@ -680,6 +680,45 @@ const LB = {
    그래서 dev:js 로 읽어준다. 서버 migrate-004 의 백필과 같은 기준이어야
    서버가 살아있을 때와 죽었을 때 같은 목록이 나온다.
    덕분에 legacy 행이 새 dev:js 기록과 같은 행으로 합쳐져 중복도 생기지 않는다. */
+/* ============ 팩 문항 ============
+   문항은 D1 에 있고 부팅 때 한 번 받는다. SQL 로 고치면 배포 없이 반영된다.
+
+   **위 배열들은 지우면 안 된다.** 서버가 죽거나 오프라인이면 그대로 폴백이다.
+   개수가 12/6/8 이 아니면(우리가 SQL 을 잘못 넣었을 때도) 폴백으로 되돌린다.
+
+   slot 순서가 곧 문항 순서다 — 서버가 ORDER BY slot 으로 주고, 그 순서로
+   rEvt() 가 뽑기 때문에 같은 시드가 같은 문제를 낸다. */
+/* 서버가 준 한 팩이 쓸 만한가. 개수 계약(12/6/8)과 필수 필드를 본다.
+   우리가 SQL 을 잘못 넣어도 게임이 안 깨지게 하는 마지막 방어선이다. */
+function validPack(c){
+  if (!c) return false;
+  if (!Array.isArray(c.bugs)    || c.bugs.length    !== 12) return false;
+  if (!Array.isArray(c.commits) || c.commits.length !== 6)  return false;
+  if (!Array.isArray(c.slacks)  || c.slacks.length  !== 8)  return false;
+  if (c.bugs.some(b => !b || !b.bad || !b.fix || !b.err))   return false;
+  if (c.commits.some(x => typeof x !== 'string' || !x))     return false;
+  if (c.slacks.some(x => !Array.isArray(x) || !x[0] || !x[1])) return false;
+  return true;
+}
+async function loadContent(){
+  if (!LB.remote) return;
+  try{
+    const r = await fetch(LB.url + '/content');
+    if (!r.ok) return;
+    const d = await r.json();
+    if (!d || !d.packs) return;
+    let n = 0;
+    for (const key in d.packs){
+      const P2 = PACKS[key], c = d.packs[key];
+      if (!P2 || !c) continue;
+      if (!validPack(c)) continue;                 // 한 군데라도 어긋나면 그 팩만 번들로 남긴다
+      P2.bugs = c.bugs; P2.commits = c.commits; P2.slacks = c.slacks;
+      n++;
+    }
+    if (n && state === 'title') title();      // 타이틀의 할 일 안내가 문항에 안 걸리지만 안전하게
+  }catch(e){}                                  // 오프라인이면 조용히 번들 배열을 쓴다
+}
+
 /* ============ 지갑 동기화 ============
    코인·아이템은 진행도라 브라우저 캐시와 함께 날아가면 안 된다. pid 기준으로 서버에 둔다.
 
@@ -3091,6 +3130,7 @@ const qsBug  = (DEV && QS.has('bug')) ? parseInt(QS.get('bug'), 10) : -1;
 const qsSeed = QS.get('seed');                          // ?seed=abc — 같은 배치 재현
 function boot(){
   buildLook();
+  loadContent();               // 문항을 서버에서 받는다 (실패하면 번들 배열)
   walletPull();                // 서버 지갑이 더 최신이면 덮어쓴다                 // 애셋이 캐시에서 즉시 온 경우까지 보장 (멱등)
   newRunSeed();
   if (qsDay >= 1 && qsDay <= 99){ wave = qsDay; skipped = qsDay > 1; startWave(wave); }

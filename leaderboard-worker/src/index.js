@@ -6,6 +6,10 @@
  *          role/lang 이 없으면 전체(scores), 있으면 팩별(pack_scores) 순위다.
  * POST /score  { pid, nick, lv, score, seed, role, lang }  ->  { ok:true }
  *
+ * GET  /content                    ->  { packs: { 'dev:js': {bugs,commits,slacks}, ... } }
+ *   팩 문항. 전 팩을 한 번에 준다 — 팩을 바꿀 때마다 재요청하지 않게.
+ *   개수가 12/6/8 이 아니면 클라이언트가 번들된 기본 배열로 되돌린다.
+ *
  * GET  /wallet?pid=...              ->  { rev, data }   (없으면 rev:0, data:null)
  * POST /wallet { pid, rev, data }   ->  { ok:true, rev }
  *   지갑·인벤토리. 서버는 아이템 카탈로그를 모른다 — 크기·형식만 보고 내용은 클라이언트가 해석한다.
@@ -171,6 +175,26 @@ export default {
         await env.DB.prepare('DELETE FROM rate WHERE at < ?').bind(now - 86400000).run();
 
       return json({ ok: true }, 200, allow);
+    }
+
+    /* ── 팩 문항 ── */
+    if (url.pathname === '/content' && req.method === 'GET') {
+      // slot 순서가 곧 문항 순서다. 같은 시드가 같은 문제를 내려면 이 정렬이 고정이어야 한다.
+      const r = await env.DB.prepare(
+        'SELECT pack, kind, slot, a, b, c, d FROM content ORDER BY pack, kind, slot'
+      ).all();
+      const packs = {};
+      for (const row of (r.results || [])) {
+        const p = packs[row.pack] || (packs[row.pack] = { bugs: [], commits: [], slacks: [] });
+        if (row.kind === 'bug')         p.bugs.push({ bad: row.a, fix: row.b, err: row.c, tok: row.d || '' });
+        else if (row.kind === 'commit') p.commits.push(row.a);
+        else if (row.kind === 'slack')  p.slacks.push([row.a, row.b]);
+      }
+      return new Response(JSON.stringify({ packs }), {
+        // 문항은 모두에게 같다. 1분 캐시면 SQL 로 고쳐도 곧 반영되고 D1 부하도 준다.
+        headers: { 'content-type': 'application/json; charset=utf-8',
+                   'cache-control': 'public, max-age=60', ...CORS(allow) },
+      });
     }
 
     /* ── 지갑 조회 ── */

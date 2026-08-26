@@ -196,6 +196,34 @@ fix(오류)   정답을 숨기고 증상만 → 위치 판단 승부. 고칠 곳
 
 세 팩의 **제보 채널**이 갈린다 — 개발자는 콘솔 에러, 기획자는 CS·정산 문의, 디자이너는 QA 리포트.
 
+### 문항은 D1 에 있다 — 고치는 데 배포가 필요 없다
+
+버그 12 · 커밋 6 · 슬랙 8, 팩마다. `content` 테이블 한 개(`migrate-006-content.sql`).
+
+```sql
+PRIMARY KEY (pack, kind, slot)     -- 슬롯 중복을 스키마에서 막는다
+-- bug     a=bad  b=fix  c=err  d=tok
+-- commit  a=문장
+-- slack   a=질문  b=답장(이것만 타이핑한다)
+```
+
+`GET /content` 가 **전 팩을 한 번에** 준다(`cache-control: max-age=60`).
+팩을 바꿀 때마다 재요청하지 않으려는 것이다. 부팅 때 한 번만 받는다.
+
+**`slot` 순서가 곧 문항 순서다.** 서버가 `ORDER BY slot` 으로 주고 그 순서로 `rEvt()` 가 뽑으므로
+같은 시드가 같은 문제를 낸다. 정렬을 바꾸면 재현성이 깨진다.
+
+> **번들 배열(`SLACKS_DEV` 등, 팩 안의 `bugs`/`commits`)을 지우면 안 된다.**
+> 서버가 죽거나 오프라인이면 그대로 폴백이다. `validPack()` 이 개수 계약(12/6/8)과
+> 필수 필드를 검사해서 **한 군데라도 어긋나면 그 팩만 번들로 남긴다** —
+> 우리가 SQL 을 잘못 넣어도 게임이 안 깨진다.
+
+문항을 고치려면 SQL 한 줄이면 되고 GitHub Pages 캐시 10분도 안 기다린다.
+단 **개수를 바꾸면 안 된다** — 12/6/8 이 아니면 폴백으로 되돌아간다.
+
+> 아직 콘텐츠 리비전(`qrev`)은 없다. 데일리 챌린지를 만들 때
+> 「어느 문항 버전으로 뛴 기록인가」가 필요해지면 그때 컬럼 하나 추가하면 된다.
+
 ### 💬 슬랙도 팩마다 다르다
 
 팀장이 개발자에게 묻는 것과 디자이너에게 묻는 것은 다르다.
@@ -477,6 +505,7 @@ POST /score {pid,nick,lv,score,seed,role,lang}
 GET  /posts?n=30&before=<id>      커서 페이지네이션 (무한스크롤)
 POST /post  {pid,nick,body}
 POST /post/del {pid,id}           pid 일치하는 글만 삭제
+GET  /content                     { packs: { 'dev:js': {bugs,commits,slacks}, ... } }
 GET  /wallet?pid=...              { rev, data }  없으면 rev:0, data:null
 POST /wallet {pid,rev,data}       { ok:true, rev }  rev 가 서버 값 이상일 때만 덮어씀
 ```

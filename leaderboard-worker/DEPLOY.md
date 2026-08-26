@@ -67,6 +67,7 @@ curl -X POST https://.../score -H 'content-type: application/json' \
 | 점수 개연성 | `20000×LV + 250×LV×(LV+1)` 초과 거부 |
 | 팩 | `role` ∈ {dev, pm}, `lang` ∈ {js, kotlin, swift, policy}. 둘 다 있거나 둘 다 없어야 함 |
 | 지갑 | `rev` 1~1e9 · `data` 4KB 이하 · JSON 객체여야 함 (배열·null·숫자 거부) · 3초 레이트리밋 |
+| 문항 | 조회 전용(`GET /content`). 쓰기 API 가 없다 — 우리가 SQL 로만 고친다 |
 | 도배 | 같은 IP 5초에 1회 (IP 는 해시로만 저장) |
 | 삭제/수정 | API 자체에 경로가 없음 — 조회와 제출만 존재 |
 
@@ -89,6 +90,7 @@ Worker 에서 재시뮬레이션하는 방식이다 (시드 기반 난수는 이
 | `migrate-003-pid-fullhex.sql` | pid 를 닉네임 전체 hex 로 재계산 (앞 16자만 쓰면 충돌) |
 | `migrate-004-pack.sql` | 팩별 순위 `pack_scores` 추가 + 옛 기록을 `dev:js` 로 백필 (`scores` 는 손대지 않음) |
 | `migrate-005-wallet.sql` | 지갑·인벤토리 `wallet` 테이블 추가 (pid 기준, 통 JSON + rev) |
+| `migrate-006-content.sql` | 팩 문항(버그·커밋·슬랙) `content` 테이블 추가 + 130행 시드 |
 
 ### migrate-004 는 순서가 중요하다
 
