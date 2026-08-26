@@ -1657,8 +1657,42 @@ const ORDER = ['error','commit','laptop','coffee','dish','bag','toilet'];
                   10 프로퍼티이름 · 11 비교연산자
    SLOTS(commits) 0 오타수정 · 1 핫픽스 · 2 잡일 · 3 기능수정 · 4 푸시·전달 · 5 빌드·테스트
 */
+/* 💬 슬랙은 팩마다 다르다 — 팀장이 개발자에게 묻는 것과 디자이너에게 묻는 것은 다르다.
+   answer(뒤 문장)만 타이핑하므로 길이를 9~14자로 맞춰 par 을 고르게 둔다.
+   전 팩 공통 par 계수(.36)를 쓰므로 여기서만 지키면 된다. */
+const SLACKS_DEV = [
+  ['배포 언제 나가나요?',      '테스트 끝나면 나갑니다'],
+  ['그 버그 재현되나요?',      '로그 보고 있습니다'],
+  ['코드리뷰 봐주실 수 있나요?', '이따 확인하겠습니다'],
+  ['서버 이상하다는데요?',      '지표는 정상입니다'],
+  ['롤백 해야 할까요?',        '조금만 더 보겠습니다'],
+  ['그 PR 머지했나요?',       '방금 올렸습니다'],
+  ['핫픽스 가능한가요?',       '지금 준비 중입니다'],
+  ['로컬에선 되나요?',        '저는 재현이 안 됩니다'],
+];
+const SLACKS_PM = [
+  ['이 정책 확정된 건가요?',    '오늘 안에 확정합니다'],
+  ['CS 문의 답변 주셨나요?',   '확인하고 회신했습니다'],
+  ['요구사항 반영됐나요?',      '문서에 업데이트했습니다'],
+  ['일정 하루 당길 수 있나요?', '검토해보겠습니다'],
+  ['이거 왜 이렇게 정했죠?',    '배경 정리해서 드릴게요'],
+  ['개발팀에 전달됐나요?',      '티켓 만들어뒀습니다'],
+  ['지표 어떻게 나왔나요?',     '대시보드 공유드릴게요'],
+  ['유관부서 합의됐나요?',      '내일 미팅 잡혀 있습니다'],
+];
+const SLACKS_DESIGN = [
+  ['시안 언제 볼 수 있나요?',   '오늘 중으로 공유합니다'],
+  ['이거 컴포넌트 있나요?',     '라이브러리에 있습니다'],
+  ['다크모드도 되나요?',       '토큰으로 대응했습니다'],
+  ['개발 전달 끝났나요?',       'Dev Mode 열어뒀습니다'],
+  ['아이콘 하나만 더 될까요?',  '내보내서 드릴게요'],
+  ['이 여백 왜 이런가요?',      '스페이싱 스케일입니다'],
+  ['피그마 권한 좀 주세요',     '방금 초대했습니다'],
+  ['시안 두 개 중 뭐가 낫죠?',  '첫 번째를 추천드립니다'],
+];
 const DEV_COMMON = {role:'dev', roleName:'개발자', ascii:true, termK:.30, fixRead:3.5,
-                    termTitle:'zsh — ~/work/office', labels:{}, doing:{}, newAt:{}};
+                    termTitle:'zsh — ~/work/office', slacks:SLACKS_DEV,
+                    labels:{}, doing:{}, newAt:{}};
 const PACKS = {
 'dev:js': Object.assign({}, DEV_COMMON, {
   lang:'js', langName:'JavaScript', icon:'🟨', fixTitle:'error.js — 배포 중단됨',
@@ -1743,6 +1777,7 @@ const PACKS = {
   termK:.62,                   // 한글은 한 글자에 2~3 타 + 한/영 전환 → ASCII(.30)의 두 배로 잡았다
   fixRead:4.0,                 // 정책문 한 줄 읽는 시간. 개발자판 3.5 와 체감 par 이 맞도록 잡았다
   termTitle:'Jira — KURLY-1234',
+  slacks:SLACKS_PM,
   fixTitle:'결제정책 v2.1 — 배포 보류',
   labels:{commit:'스펙 확정', error:'정책 수정'},
   doing :{commit:'확정 코멘트 쓰는 중', error:'정책 고치는 중'},
@@ -1793,6 +1828,7 @@ const PACKS = {
   termK:.40,                   // 대문자 shift + 슬래시가 많아 글자당 타수가 높다. ASCII 명령어(.30)보다 더 준다
   fixRead:4.5,                 // 대비·터치영역 같은 '디자이너만 아는 수치'를 떠올리는 시간
   termTitle:'Figma — 결제 컴포넌트',
+  slacks:SLACKS_DESIGN,
   fixTitle:'Button/Primary — 검수 반려',
   labels:{commit:'레이어 정리', error:'디자인 수정'},
   doing :{commit:'이름 붙이는 중', error:'시안 고치는 중'},
@@ -1858,16 +1894,6 @@ window.__setPack = k => {
 };
 const tLabel = t => P.labels[t] || TASKS[t].label;
 
-const SLACKS = [
-  ['잠깐 시간 되세요?',       '지금 좀 바쁩니다'],
-  ['이거 오늘까지 되나요?',   '내일 오전에 드릴게요'],
-  ['5분만 콜 가능할까요?',    '회의 들어가봐야 해서요'],
-  ['아까 그 건 어떻게 됐죠?', '확인하고 공유드리겠습니다'],
-  ['혹시 퇴근하세요?',        '아직 자리에 있습니다'],
-  ['내일 아침 자료 있나요?',  '네 오늘 안에 올리겠습니다'],
-  ['슬랙 확인 좀 해주세요',   '죄송합니다 지금 봤어요'],
-  ['배포 언제 나가나요?',     '테스트 끝나면 바로 나갑니다'],
-];
 
 /* ============================ 웨이브 ============================ */
 function waveConfig(w){
@@ -2531,7 +2557,7 @@ function update(dt){
   if (cfg.slack && !typing.active && !dish.active && phase === 'run' && player.stun <= 0){
     slackT -= dt;
     if (slackT <= 0 && timeLeft > 8){
-      const s = SLACKS[(rEvt()*SLACKS.length)|0];
+      const s = P.slacks[(rEvt()*P.slacks.length)|0];
       slackT = 8 + rEvt()*5;
       startTyping('slack', s[1], cfg.slackLimit, s[0]);
       SFX.notif();
