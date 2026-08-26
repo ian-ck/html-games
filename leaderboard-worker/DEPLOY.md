@@ -92,6 +92,7 @@ Worker 에서 재시뮬레이션하는 방식이다 (시드 기반 난수는 이
 | `migrate-005-wallet.sql` | 지갑·인벤토리 `wallet` 테이블 추가 (pid 기준, 통 JSON + rev) |
 | `migrate-006-content.sql` | 팩 문항(버그·커밋·슬랙) `content` 테이블 추가 + 130행 시드 |
 | `migrate-007-content-v2.sql` | 문항 전면 개정 — 20/10/12 로 증량, 210행. `content-source.json` 에서 생성 |
+| `migrate-008-java.sql` | ☕ Java 팩 문항 42행 (해당 팩만 갱신하므로 재실행 안전) |
 
 ### migrate-004 는 순서가 중요하다
 

@@ -57,6 +57,7 @@
 | 🟨 JavaScript | `git commit -m "fix typo"` | `consol.log(...)` → 콘솔 에러 보고 오타 한 곳 수정 |
 | 🟪 Kotlin | `./gradlew test` | `pritnln(items.size)` → `Unresolved reference` |
 | 🟧 Swift | `swift test` | `pirnt(items.count)` → `Cannot find 'pirnt' in scope` |
+| ☕ Java | `mvn -q test` | `if (a == b)` → 문자열을 `==` 로 비교. `equals` 로 |
 | 📋 기획자 | `[확정] 쿠폰 정책 v2.1` | 정책 문장 + 제보 → 틀린 곳 한 군데 수정 (한글 입력) |
 | 🎨 디자이너 | `Button/Primary/Hover` | QA 제보 → 대비·터치영역·토큰 같은 **수치·규칙** 수정 |
 

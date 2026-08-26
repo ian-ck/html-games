@@ -928,5 +928,191 @@
     "기획팀에 확인하겠습니다"
    ]
   ]
+ },
+ "dev:java": {
+  "bugs": [
+   {
+    "bad": "fpr (int i = 0; i < 10; i++) {",
+    "fix": "for (int i = 0; i < 10; i++) {",
+    "err": "error: illegal start of expression",
+    "tok": "fpr"
+   },
+   {
+    "bad": "lf (user.isAdmin()) {",
+    "fix": "if (user.isAdmin()) {",
+    "err": "error: cannot find symbol — lf",
+    "tok": "lf"
+   },
+   {
+    "bad": "retrun total;",
+    "fix": "return total;",
+    "err": "error: cannot find symbol: retrun",
+    "tok": "retrun"
+   },
+   {
+    "bad": "System.out.printn(size);",
+    "fix": "System.out.println(size);",
+    "err": "cannot find symbol: method printn(int)",
+    "tok": "printn"
+   },
+   {
+    "bad": "whlie (!queue.isEmpty()) {",
+    "fix": "while (!queue.isEmpty()) {",
+    "err": "error: illegal start of expression",
+    "tok": "whlie"
+   },
+   {
+    "bad": "improt java.util.List;",
+    "fix": "import java.util.List;",
+    "err": "error: class, interface, or enum expected",
+    "tok": "improt"
+   },
+   {
+    "bad": "pubic class Order {",
+    "fix": "public class Order {",
+    "err": "error: illegal start of type",
+    "tok": "pubic"
+   },
+   {
+    "bad": "esle if (score > 90) {",
+    "fix": "else if (score > 90) {",
+    "err": "error: 'else' without 'if'",
+    "tok": "esle"
+   },
+   {
+    "bad": "int[] arr = {1, 2, 3;",
+    "fix": "int[] arr = {1, 2, 3};",
+    "err": "error: '}' expected",
+    "tok": "} 닫는 중괄호"
+   },
+   {
+    "bad": "if (name.equalsIgnorecase(\"a\")) {",
+    "fix": "if (name.equalsIgnoreCase(\"a\")) {",
+    "err": "cannot find symbol: method equalsIgnorecase(String)",
+    "tok": "Case 대소문자"
+   },
+   {
+    "bad": "return arr.lenght;",
+    "fix": "return arr.length;",
+    "err": "cannot find symbol: variable lenght",
+    "tok": "lenght"
+   },
+   {
+    "bad": "if (a == b) return true;",
+    "fix": "if (a.equals(b)) return true;",
+    "err": "문자열을 == 로 비교했습니다 — 값이 같아도 false 가 나옵니다",
+    "tok": "== → equals"
+   },
+   {
+    "bad": "vra list = new ArrayList<>();",
+    "fix": "var list = new ArrayList<>();",
+    "err": "cannot find symbol: class vra",
+    "tok": "vra"
+   },
+   {
+    "bad": "recrod User(String name) {}",
+    "fix": "record User(String name) {}",
+    "err": "error: class, interface, enum, or record expected",
+    "tok": "recrod"
+   },
+   {
+    "bad": "items.collect(Collecters.toList())",
+    "fix": "items.collect(Collectors.toList())",
+    "err": "cannot find symbol: variable Collecters",
+    "tok": "Collecters"
+   },
+   {
+    "bad": "Optional.ofNullalbe(user)",
+    "fix": "Optional.ofNullable(user)",
+    "err": "cannot find symbol: method ofNullalbe(User)",
+    "tok": "ofNullalbe"
+   },
+   {
+    "bad": "swich (state) { case \"a\" -> 1; }",
+    "fix": "switch (state) { case \"a\" -> 1; }",
+    "err": "error: illegal start of expression",
+    "tok": "swich"
+   },
+   {
+    "bad": "public statc void main(String[] a)",
+    "fix": "public static void main(String[] a)",
+    "err": "error: illegal start of type",
+    "tok": "statc"
+   },
+   {
+    "bad": "Stirng name = \"admin\";",
+    "fix": "String name = \"admin\";",
+    "err": "cannot find symbol: class Stirng",
+    "tok": "Stirng"
+   },
+   {
+    "bad": "int count = \"5\";",
+    "fix": "int count = 5;",
+    "err": "incompatible types: String cannot be converted to int",
+    "tok": "\"5\" → 5"
+   }
+  ],
+  "commits": [
+   "git commit -m \"fix typo\"",
+   "git commit -m \"hotfix: NPE guard\"",
+   "git commit -m \"chore: bump spotless\"",
+   "git commit -m \"fix: elevator bug\"",
+   "git commit -m \"refactor: use stream\"",
+   "git commit -m \"test: add junit case\"",
+   "git commit -m \"perf: cache lookup\"",
+   "git commit --amend --no-edit",
+   "git push origin main",
+   "mvn -q test"
+  ],
+  "slacks": [
+   [
+    "배포 언제 나가나요?",
+    "테스트 끝나면 나갑니다"
+   ],
+   [
+    "그 버그 재현되나요?",
+    "로그 보고 있습니다"
+   ],
+   [
+    "코드리뷰 봐주실 수 있나요?",
+    "이따 확인하겠습니다"
+   ],
+   [
+    "서버 이상하다는데요?",
+    "지표는 정상입니다"
+   ],
+   [
+    "롤백 해야 할까요?",
+    "조금만 더 보겠습니다"
+   ],
+   [
+    "그 PR 머지했나요?",
+    "방금 올렸습니다"
+   ],
+   [
+    "핫픽스 가능한가요?",
+    "지금 준비 중입니다"
+   ],
+   [
+    "로컬에선 되나요?",
+    "저는 재현이 안 됩니다"
+   ],
+   [
+    "CI 가 계속 빨간데요",
+    "플레이키 테스트입니다"
+   ],
+   [
+    "이거 스펙 맞나요?",
+    "티켓 다시 보겠습니다"
+   ],
+   [
+    "장애 원인 나왔나요?",
+    "곧 공유드리겠습니다"
+   ],
+   [
+    "QA 반영 언제 되죠?",
+    "다음 배포에 들어갑니다"
+   ]
+  ]
  }
 }
