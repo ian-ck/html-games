@@ -348,7 +348,7 @@
 <div id="app">
   <header>
     <h1>🚌 퇴근 스쿨버스</h1>
-    <span class="sub">엘리베이터 도착 전까지 칼퇴해라!</span>
+    <span class="sub">엘리베이터 도착 전까지 정시 퇴근해라!</span>
     <span class="nick" id="nick"></span>
     <span class="best" id="best"></span>
   </header>
@@ -554,7 +554,9 @@ function faceFromAngle(a){
 }
 
 /* ============================ 닉네임 & 순위표 ============================ */
-const NICK_A = ['칼퇴','야근','정시','광속','유령','전설','무적','심야','새벽','반차',
+/* '칼퇴' 는 뺐다 — 잘못된 표현이라 앞으로 뽑히지 않게 한다. '정시' 가 같은 뜻으로 이미 있다.
+   이미 만들어진 닉네임은 localStorage 와 서버에 저장된 값이라 그대로 남는다. */
+const NICK_A = ['야근','정시','광속','유령','전설','무적','심야','새벽','반차',
                 '연차','재택','월요','금요','점심','정각'];
 const NICK_B = ['요정','장인','고수','달인','인턴','사원','대리','주임','과장','차장',
                 '신입','베테랑','수호자','전문가','기계','귀신'];
@@ -909,6 +911,7 @@ function ago(t){
 const locked = () => state === 'playing' || state === 'resign';
 window.__board = open => {
   if (open && locked()) return;
+  if (open) window.__look(0);                   // 장비창과 겹치지 않게 — 한 번에 하나만
   el.anon.style.display = open ? 'flex' : 'none';
   if (open){ el.anonInput.value = ''; el.anonCount.textContent = '0/140'; loadPosts(true); el.anonInput.focus(); }
 };
@@ -1442,8 +1445,11 @@ function outfitThumb(o){
    매번 innerHTML 을 다시 쓰면 눌린 버튼이 사라져서 브라우저가 click 을 안 쏜다
    (setHTML 주석 참고). */
 let lookOpen = false, lookT = 0, lookTab = 0;
+/* 게시판과 장비창은 서로를 닫는다. 겹쳐 뜨면 뒤엣것의 버튼이 앞엣것에 가려
+   눌리지 않는 상태가 된다. 서로 넘기는 인자가 항상 0 이라 재귀하지 않는다. */
 window.__look = open => {
   if (open && locked()) return;                 // 플레이 중·사직서 선택 중에는 못 연다
+  if (open) window.__board(0);
   lookOpen = !!open;
   el.look.style.display = lookOpen ? 'flex' : 'none';
   if (lookOpen){
@@ -2219,7 +2225,7 @@ let bestLv = +(localStorage.getItem('lot.bestLv') || 0);
 let bestScore = +(localStorage.getItem('lot.bestScore') || 0);
 const fmt = n => n.toLocaleString('ko-KR');
 /* levelFree — 사직서로 다시 시작한 레벨. 클리어·시간 보너스를 못 받는다.
-   야근한 날은 칼퇴 점수가 없다. startWave 에서 초기화하므로 다음 레벨엔 영향이 없다. */
+   야근한 날은 정시 퇴근 점수가 없다. startWave 에서 초기화하므로 다음 레벨엔 영향이 없다. */
 let levelFree = false, resignUsed = 0;
 function scoreBreak(){
   const base = levelFree ? 0 : wave*500;
@@ -2898,7 +2904,7 @@ function win(){
   const n = waveConfig(wave+1);
   const row = (l,v) => '<div><span>'+l+'</span><b>+'+fmt(v)+'</b></div>';
   showOverlay('<div class="big">🎉</div><h2>LV.'+wave+' 클리어!</h2>'
-    + '<p>'+wave+'일차 칼퇴 성공 — 마감 '+Math.max(0,timeLeft).toFixed(1)+'초 전에 탑승</p>'
+    + '<p>'+wave+'일차 정시 퇴근 성공 — 마감 '+Math.max(0,timeLeft).toFixed(1)+'초 전에 탑승</p>'
     + '<div class="brk">'
     +   row('클리어 보너스 (LV.'+wave+')', br.base)
     +   row('남은 시간 '+Math.max(0,timeLeft).toFixed(1)+'초', br.timeB)
@@ -2931,7 +2937,7 @@ function askResign(){
                    : '<p>준비는 다 했는데... 엘베 앞까지 못 갔다.</p>')
     + '<p style="color:var(--warn);font-size:15px">💼 사직서를 내면 <b>'+wave+'일차를 처음부터 다시</b> 시작한다.</p>'
     + '<p style="font-size:12.5px">같은 배치로 재도전한다. 단 그 날은 '
-    + '<b style="color:var(--bad)">클리어 보너스와 시간 보너스를 받지 못한다</b> — 야근한 날은 칼퇴 점수가 없다.<br>'
+    + '<b style="color:var(--bad)">클리어 보너스와 시간 보너스를 받지 못한다</b> — 야근한 날은 정시 퇴근 점수가 없다.<br>'
     + '지금까지 누적한 <b>'+fmt(score)+'점</b>은 그대로 유지된다.</p>'
     + '<button class="btn" onclick="window.__resign(1)">💼 사직서 제출 — 남은 '+SHOP.count('resign')+'장</button>'
     + '<button class="btn ghost" onclick="window.__resign(0)">🌙 그냥 야근한다</button>');
@@ -3322,7 +3328,7 @@ function title(){
   pickDesks(); buildMap(); npcs = []; carry = false;
   phase = 'run'; timeLeft = c.deadline; alertMeter = 0; elevator = {open:0}; score = 0;
   showOverlay('<div class="big">🚌</div><h2>퇴근 스쿨버스</h2>'
-    + '<p style="font-size:15px;color:var(--warn)">엘리베이터 도착 전까지 칼퇴해라!</p>'
+    + '<p style="font-size:15px;color:var(--warn)">엘리베이터 도착 전까지 정시 퇴근해라!</p>'
     + '<p>18시, 15층. 팀장 시야를 피해 퇴근 준비를 끝내고 엘베 앞까지 가라.</p>'
     + '<div class="keys">'
     + '<span class="key"><b>WASD</b> / 방향키 — 이동</span>'
