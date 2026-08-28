@@ -1202,11 +1202,21 @@ const GEAR = [
 const SLOTS = {watch:'⌚ 워치', laptop:'💻 노트북', tablet:'📱 태블릿', buds:'🎧 이어폰'};
 const GEAR_CAP = 1.6;                       // par 배율 상한
 
-/* 소비템 — 쓸 때마다 하나씩 사라진다. 여러 개 살 수 있다. */
+/* 소비템 — 쓸 때마다 하나씩 사라진다. 여러 개 살 수 있다.
+
+   가격은 **한 판 벌이(LV6 약 51코인)** 기준으로 잡았다. 한 번 쓰면 사라지는 물건이라
+   영구 아이템(의상 40~300 · 장비 120~400)보다 확실히 싸야 하고,
+   개당 가치는 💼사직서 > 🤖Claude 다 — 야근 확정은 런 자체가 끝나는 것이고
+   (`lose()` 는 점수를 적립하지 않는다) Claude 가 지키는 건 미션 하나다.
+
+   ⚠️ 코인은 영구 누적이라 **가격만으로는 상한이 안 걸린다.** 싸게 두려면 재고 상한이 짝이다.
+   상한이 없으면 오래 한 사람의 인벤토리가 100개가 되고 타이핑 미니게임(게임의 코어)이
+   통째로 사라진다. `SHOP.buy()` / `apply()` / 재고 로더 세 곳이 다 STOCK_CAP 을 봐야 한다. */
+const STOCK_CAP = 5;                        // 소모품 종류별 보유 상한
 const USABLES = [
-  {id:'claude', n:'Claude Code', icon:'🤖', p:300,
+  {id:'claude', n:'Claude Code', icon:'🤖', p:10,
    d:'🚨오류수정·⌨️커밋 중 <b>Tab</b> — AI 가 즉시 고치고 전송한다'},
-  {id:'resign', n:'사직서', icon:'💼', p:200,
+  {id:'resign', n:'사직서', icon:'💼', p:20,
    d:'야근 확정 1회 방어 — 그 날을 처음부터 다시. 그 레벨은 클리어·시간 보너스가 없다'},
 ];
 const ITEMS = () => OUTFITS.concat(GEAR, USABLES);
@@ -1237,7 +1247,7 @@ const SHOP = {
       const v = JSON.parse(localStorage.getItem('lot.stock') || 'null');
       if (v && typeof v === 'object')
         for (const u of USABLES)
-          if (Number.isInteger(v[u.id]) && v[u.id] > 0) o[u.id] = v[u.id];
+          if (Number.isInteger(v[u.id]) && v[u.id] > 0) o[u.id] = Math.min(STOCK_CAP, v[u.id]);
     }catch(e){}
     return o;
   })(),
@@ -1279,7 +1289,8 @@ const SHOP = {
     this.owned.add('default');          // 기본 출근복은 항상 보유
     if (o.stock && typeof o.stock === 'object')
       for (const u of USABLES)
-        this.stock[u.id] = Number.isInteger(o.stock[u.id]) && o.stock[u.id] > 0 ? o.stock[u.id] : 0;
+        this.stock[u.id] = Number.isInteger(o.stock[u.id]) && o.stock[u.id] > 0
+                          ? Math.min(STOCK_CAP, o.stock[u.id]) : 0;
     if (o.gear && typeof o.gear === 'object')
       for (const k in SLOTS){
         const g = GEAR.find(x => x.id === o.gear[k] && x.slot === k);
@@ -1294,6 +1305,7 @@ const SHOP = {
     const it = findItem(id);
     if (!it || this.coins < it.p) return false;
     if (!isUsable(id) && this.has(id)) return false;      // 의상·장비는 중복 구매 불가
+    if (isUsable(id) && this.count(id) >= STOCK_CAP) return false;   // 소모품은 상한까지만
     this.coins -= it.p;
     if (isUsable(id)) this.stock[id] = this.count(id) + 1;
     else this.owned.add(id);
@@ -1515,7 +1527,10 @@ window.__buy = id => {
   const o = findItem(id);
   if (!o) return;
   if (!SHOP.buy(id)){
-    flash(SHOP.coins < o.p ? '🪙 코인이 ' + fmt(o.p - SHOP.coins) + ' 부족하다' : '이미 갖고 있다');
+    flash(isUsable(id) && SHOP.count(id) >= STOCK_CAP
+            ? o.icon + ' ' + o.n + ' 는 ' + STOCK_CAP + '개까지만 가질 수 있다'
+        : SHOP.coins < o.p ? '🪙 코인이 ' + fmt(o.p - SHOP.coins) + ' 부족하다'
+                           : '이미 갖고 있다');
     return;
   }
   SFX.ding();
@@ -1598,13 +1613,13 @@ function shopHTML(){
        + gears.map(g => buyRow(g, SLOTS[g.slot] + ' · ' + boostLabel(g))).join('') + '</div>';
   // 소비템은 몇 번이고 다시 산다
   h += '<div class="shead">🧪 소모품 — 쓸 때마다 사라진다</div><div class="grid2">'
-     + USABLES.map(u => buyRow(u, u.d, SHOP.count(u.id))).join('') + '</div>';
+     + USABLES.map(u => buyRow(u, u.d, SHOP.count(u.id) + ' / ' + STOCK_CAP)).join('') + '</div>';
   if (!clothes.length && !gears.length)
     h = '<div class="lnote">🛒 의상·장비는 전부 구매했다.</div>' + h;
   return h;
 }
 function buyRow(it, desc, own){
-  const poor = SHOP.coins < it.p;
+  const poor = SHOP.coins < it.p || (isUsable(it.id) && SHOP.count(it.id) >= STOCK_CAP);
   return '<button class="brow' + (poor ? ' poor' : '') + '"'
     + ' onclick="window.__buy(\'' + it.id + '\')">'
     + '<span class="bn">' + (it.icon ? it.icon + ' ' : '') + esc(it.n)
@@ -2633,7 +2648,7 @@ window.__clock = t => { timeLeft = t; return timeLeft; };
 window.__coin = n => { SHOP.coins = Math.max(0, n|0); SHOP.save(); refreshLook(); return SHOP.coins; };
 window.__giveAll = () => {
   OUTFITS.concat(GEAR).forEach(x => SHOP.owned.add(x.id));
-  for (const u of USABLES) SHOP.stock[u.id] = 9;
+  for (const u of USABLES) SHOP.stock[u.id] = STOCK_CAP;
   SHOP.save(); refreshLook();
   return {coins:SHOP.coins, 의상:OUTFITS.filter(o=>SHOP.has(o.id)).length,
           장비:GEAR.filter(g=>SHOP.has(g.id)).length, 소모품:Object.assign({}, SHOP.stock)};
