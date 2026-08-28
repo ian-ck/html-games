@@ -62,6 +62,24 @@ async function hash(s) {
   return [...new Uint8Array(b)].slice(0, 8).map(x => x.toString(16).padStart(2, '0')).join('');
 }
 
+/* 레이트리밋 — 검사와 기록을 한 문장으로 묶어 원자적으로 처리한다.
+   SELECT 로 읽고 → 비교하고 → INSERT 로 쓰는 3단계로 나누면, 거의 동시에 온 두 요청이
+   둘 다 쓰기 전에 읽어서 둘 다 통과한다. 하필 더블 서브밋이 가장 필요한 방어 대상인데
+   거기서 뚫린다. 실제로 게시판에서 한글 IME 가 Enter 를 두 번 흘려 10초 제한을 뚫고
+   같은 초에 두 글이 등록된 적이 있다 (2026-08-28).
+
+   ON CONFLICT ... DO UPDATE ... WHERE 는 조건이 거짓이면 아무것도 안 해서 changes 가 0 이다.
+   신규 ip 는 INSERT 가 성사되어 1 이다. 즉 changes > 0 이 곧 '통과'다.
+   차단된 요청은 at 을 갱신하지 않는다 — 연타로 대기창을 무한히 늘리지 못하게. */
+async function rateOk(env, ip, now, ms) {
+  const r = await env.DB.prepare(
+    `INSERT INTO rate (ip, at) VALUES (?, ?)
+       ON CONFLICT(ip) DO UPDATE SET at = excluded.at
+       WHERE excluded.at - rate.at >= ?`
+  ).bind(ip, now, ms).run();
+  return (r.meta?.changes || 0) > 0;
+}
+
 export default {
   async fetch(req, env) {
     const url = new URL(req.url);
@@ -146,11 +164,7 @@ export default {
       // 같은 IP 는 5초에 한 번만 (해시로만 대조)
       const ip = await hash((req.headers.get('cf-connecting-ip') || '?') + '|' + (env.SALT || 'toegeun'));
       const now = Date.now();
-      const last = await env.DB.prepare('SELECT at FROM rate WHERE ip = ?').bind(ip).first();
-      if (last && now - last.at < 5000) return json({ error: 'too fast' }, 429, allow);
-      await env.DB.prepare(
-        'INSERT INTO rate (ip, at) VALUES (?, ?) ON CONFLICT(ip) DO UPDATE SET at = excluded.at'
-      ).bind(ip, now).run();
+      if (!await rateOk(env, ip, now, 5000)) return json({ error: 'too fast' }, 429, allow);
 
       // pid 당 한 행. 닉네임은 항상 최신으로 갱신하고 점수는 최고값만 유지한다.
       await env.DB.prepare(
@@ -230,11 +244,7 @@ export default {
 
       const ip = 'w:' + await hash((req.headers.get('cf-connecting-ip') || '?') + '|' + (env.SALT || 'toegeun'));
       const now = Date.now();
-      const last = await env.DB.prepare('SELECT at FROM rate WHERE ip = ?').bind(ip).first();
-      if (last && now - last.at < 3000) return json({ error: 'too fast' }, 429, allow);
-      await env.DB.prepare(
-        'INSERT INTO rate (ip, at) VALUES (?, ?) ON CONFLICT(ip) DO UPDATE SET at = excluded.at'
-      ).bind(ip, now).run();
+      if (!await rateOk(env, ip, now, 3000)) return json({ error: 'too fast' }, 429, allow);
 
       // rev 가 서버 값 이상일 때만 덮어쓴다 — 오래 열려 있던 탭이 최신 지갑을 되돌리지 못하게
       await env.DB.prepare(
@@ -282,11 +292,7 @@ export default {
       // 도배 방지 — 점수 제출과 별도 카운터('p:' 접두사)
       const ip = 'p:' + await hash((req.headers.get('cf-connecting-ip') || '?') + '|' + (env.SALT || 'toegeun'));
       const now = Date.now();
-      const last = await env.DB.prepare('SELECT at FROM rate WHERE ip = ?').bind(ip).first();
-      if (last && now - last.at < 10000) return json({ error: 'too fast' }, 429, allow);
-      await env.DB.prepare(
-        'INSERT INTO rate (ip, at) VALUES (?, ?) ON CONFLICT(ip) DO UPDATE SET at = excluded.at'
-      ).bind(ip, now).run();
+      if (!await rateOk(env, ip, now, 10000)) return json({ error: 'too fast' }, 429, allow);
 
       await env.DB.prepare('INSERT INTO posts (pid, nick, body, at) VALUES (?, ?, ?, ?)')
         .bind(pid, nick, text, now).run();

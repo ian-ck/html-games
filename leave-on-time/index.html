@@ -954,9 +954,15 @@ el.anonList.addEventListener('scroll', () => {
   const e = el.anonList;
   if (e.scrollTop + e.clientHeight >= e.scrollHeight - 60) loadPosts(false);
 });
+/* 전송 중 재진입 방어. await 사이에 __post 가 또 불리면 같은 글이 두 번 올라간다.
+   IME 가 Enter 를 두 번 흘리는 경우(아래 keydown 참고)와 등록 버튼 연타가 여기서 걸린다.
+   ⚠️ postBusy 는 이미 목록 로딩(loadPosts)이 쓰는 이름이다 — 전송용은 따로 둔다. */
+let sendBusy = false;
 window.__post = async () => {
+  if (sendBusy) return;
   const text = (el.anonInput.value || '').normalize('NFC').replace(/\s+/g, ' ').trim();
   if (!text){ el.anonInput.focus(); return; }
+  sendBusy = true;
   el.anonInput.value = ''; el.anonCount.textContent = '0/140';
   try{ await BOARD.write(text); }
   catch(e){
@@ -965,6 +971,7 @@ window.__post = async () => {
       + el.anonList.innerHTML;
     return;
   }
+  finally{ sendBusy = false; }
   loadPosts(true);
 };
 window.__unpost = async id => { await BOARD.remove(id); loadPosts(true); };
@@ -973,6 +980,11 @@ el.anonInput.addEventListener('input', () => {
 });
 el.anonInput.addEventListener('keydown', e => {
   e.stopPropagation();                       // 게임 조작으로 새지 않게
+  /* 한글 IME 는 조합 중 Enter 를 '조합 확정' 에 한 번 쓰고 keydown 을 또 보낸다.
+     막지 않으면 __post 가 두 번 돌고, 첫 번째가 입력칸을 비운 뒤 확정된 마지막 글자가
+     빈 칸에 떨어져 '다' · 'ㅋ' 같은 한 글자짜리 글이 하나 더 등록된다.
+     keyCode 229 는 isComposing 이 없던 구형 브라우저용 신호다. */
+  if (e.isComposing || e.keyCode === 229) return;
   if (e.key === 'Enter') window.__post();
   if (e.key === 'Escape') window.__board(0);
 });
