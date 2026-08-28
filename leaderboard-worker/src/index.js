@@ -47,7 +47,14 @@ const LANGS = ['js', 'kotlin', 'swift', 'java', 'policy', 'design'];
 // 지갑 JSON 크기 상한. 의상·장비가 늘어도 여유 있는 값이다.
 const WALLET_MAX = 4096;
 
+// 레벨 상한. 클라이언트 공식상 lv 는 끝없이 오르지만, 실제 최고 기록이 lv16 이라
+// 그 1.5배에서 자른다. 이걸 99 로 두면 아래 maxScore 의 250*lv*(lv+1) 항만으로
+// lv99 가 2,475,000 을 허용해서 999999 같은 위조가 그냥 통과한다 (2026-08-28 어뷰징).
+// lv25 를 넘는 실제 플레이어가 나오면 올릴 것 — 넘으면 조용히 400 이라 기록이 안 남는다.
+const MAX_LV = 25;
+
 // 레벨별 이론상 상한. 정상 플레이보다 넉넉하지만 999999 같은 값은 막는다.
+// 클라이언트의 scoreBreak/typeBonus/waveConfig 로 계산한 이론최대 대비 약 1.2배다.
 const maxScore = lv => 20000 * lv + 250 * lv * (lv + 1);
 
 async function hash(s) {
@@ -132,7 +139,7 @@ export default {
       if (lang && !LANGS.includes(lang))             return json({ error: 'bad lang' }, 400, allow);
       if (!!role !== !!lang)                         return json({ error: 'bad pack' }, 400, allow);
       if (!NICK_RE.test(nick))                       return json({ error: 'bad nick' }, 400, allow);
-      if (!Number.isFinite(lv) || lv < 1 || lv > 99) return json({ error: 'bad lv' }, 400, allow);
+      if (!Number.isFinite(lv) || lv < 1 || lv > MAX_LV) return json({ error: 'bad lv' }, 400, allow);
       if (!Number.isFinite(score) || score < 1)      return json({ error: 'bad score' }, 400, allow);
       if (score > maxScore(lv))                      return json({ error: 'implausible score' }, 400, allow);
 
