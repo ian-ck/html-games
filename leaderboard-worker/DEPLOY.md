@@ -65,7 +65,7 @@ curl -X POST https://.../score -H 'content-type: application/json' \
 | 닉네임 형식 | 한글/영숫자 2~20자 + `#` + 16진수 3자. XSS 문자열 자체가 통과 못 함 |
 | 레벨 범위 | 1~99 |
 | 점수 개연성 | `20000×LV + 250×LV×(LV+1)` 초과 거부 |
-| 팩 | `role` ∈ {dev, pm}, `lang` ∈ {js, kotlin, swift, policy}. 둘 다 있거나 둘 다 없어야 함 |
+| 팩 | `role` ∈ {dev, pm, design, data}, `lang` ∈ {js, kotlin, swift, java, policy, design, sql}. 둘 다 있거나 둘 다 없어야 함 |
 | 지갑 | `rev` 1~1e9 · `data` 4KB 이하 · JSON 객체여야 함 (배열·null·숫자 거부) · 3초 레이트리밋 |
 | 문항 | 조회 전용(`GET /content`). 쓰기 API 가 없다 — 우리가 SQL 로만 고친다 |
 | 도배 | 같은 IP 5초에 1회 (IP 는 해시로만 저장) |
@@ -93,6 +93,7 @@ Worker 에서 재시뮬레이션하는 방식이다 (시드 기반 난수는 이
 | `migrate-006-content.sql` | 팩 문항(버그·커밋·슬랙) `content` 테이블 추가 + 130행 시드 |
 | `migrate-007-content-v2.sql` | 문항 전면 개정 — 20/10/12 로 증량, 210행. `content-source.json` 에서 생성 |
 | `migrate-008-java.sql` | ☕ Java 팩 문항 42행 (해당 팩만 갱신하므로 재실행 안전) |
+| `migrate-009-sql.sql` | 📊 데이터 분석가(SQL) 팩 문항 42행 (재실행 안전) |
 
 ### migrate-004 는 순서가 중요하다
 

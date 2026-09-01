@@ -187,9 +187,9 @@ __adv()          // 다음 레벨 / 재시작 — 오버레이 버튼이 쓰므�
 1. **클라이언트와 Worker의 닉네임 정규식은 같아야 한다.**
    지금 둘 다 `2~10자 + #16진수3자`. 한쪽만 바꾸면 조용히 거부되거나 우회된다.
 
-2. **직군·언어 팩의 배열 길이를 맞출 것 — `bugs` 12개, `commits` 6개.**
+2. **직군·언어 팩의 배열 길이를 맞출 것 — `bugs` 20 · `commits` 10 · `slacks` 12.**
    `rEvt()` 로 인덱싱하므로 길이가 다르면 **같은 시드가 팩마다 다른 문제를 낸다.**
-   데일리 챌린지·재현성의 전제라 이건 협상 불가다.
+   데일리 챌린지·재현성의 전제라 이건 협상 불가다. 16번의 `PACK_N` 과 같은 계약이다.
 
    **반면 「같은 슬롯 = 같은 난이도」와 「15~40자 밴드」는 완화됐다 (2026-08-26).**
    그건 팩끼리 점수를 비교하려던 규칙인데, 순위표에 직군·언어 탭이 생겨서 필요가 없어졌다.
@@ -198,18 +198,34 @@ __adv()          // 다음 레벨 / 재시작 — 오버레이 버튼이 쓰므�
    다만 「전체」 탭은 여전히 전 팩이 섞인다. 한 팩이 눈에 띄게 쉬우면
    전체 1등을 노리는 사람이 그 팩만 하게 된다. **파가 2배씩 벌어지지 않을 정도**의
    느슨한 상한만 지키면 충분하고, 그 이상은 직군 탭이 흡수한다.
+   **정규식으로 세지 말 것 — `PACKS` 를 실행해서 셀 것.** 문항 안에 따옴표·중괄호가 들어있어
+   정규식은 조용히 틀린 개수를 낸다. JavaScriptCore 로 실제 값을 덤프하면 `Object.assign`
+   상속과 TDZ 까지 한 번에 걸린다.
    ```bash
-   # 12/6 규격 + par 캘리브레이션 확인
-   python3 - <<'EOF'
-   import io,re
+   # 20/10/12 규격 + par 캘리브레이션. 실행해서 센다
+   python3 - > /tmp/dump.js <<'EOF'
+   import io
    s=io.open('leave-on-time/index.html',encoding='utf-8').read()
-   blk=s[s.index('const DEV_COMMON'):s.index('const tLabel')]
-   for m in re.finditer(r"^'([\w:]+)':", blk, re.M):
-       b=blk[m.start():]; nxt=re.search(r"\n'[\w:]+':", b)
-       b=b[:nxt.start()] if nxt else b
-       nb=len(re.findall(r'\{bad:', b))
-       cs=b.index('commits:['); nc=len(re.findall(r"'[^']*'", b[cs:b.index(chr(10)+'  ],',cs)]))
-       print(m.group(1), 'bugs',nb, 'commits',nc, '✅' if (nb,nc)==(12,6) else '❌')
+   print("var location={search:''};")
+   print("function URLSearchParams(){ return {get:function(){return null}} }")
+   print(s[s.index('const SLACKS_DEV'):s.index('const PACK_KEYS')])
+   print("var o={}; for (var k in PACKS){ var p=PACKS[k];")
+   print("  o[k]={ascii:p.ascii,termK:p.termK,fixRead:p.fixRead,")
+   print("        bugs:p.bugs,commits:p.commits,slacks:p.slacks}; } print(JSON.stringify(o));")
+   EOF
+   JSC=/System/Library/Frameworks/JavaScriptCore.framework/Versions/A/Helpers/jsc
+   $JSC /tmp/dump.js > /tmp/packs.json && python3 - <<'EOF'
+   import json
+   d=json.load(open('/tmp/packs.json'))
+   for k,v in sorted(d.items()):
+       n=(len(v['bugs']),len(v['commits']),len(v['slacks']))
+       # par 은 글자당 .12 초를 주는데 실제 타이핑은 ASCII 5.5타/초 = .18 초/글자다.
+       # 그래서 par 숫자만 보면 「줄이 긴 팩이 후해 보이는」 착시가 난다.
+       # 같은 타속으로 쳤을 때 실제로 나오는 ⚡ 로 봐야 한다.
+       f=sum(max(0,min(1,((v['fixRead']+len(b['fix'])*.12)-len(b['fix'])/5.5)
+             /(v['fixRead']+len(b['fix'])*.12)))*700 for b in v['bugs'])/20 if v['ascii'] else 0
+       print(k.ljust(14), n, '✅' if n==(20,10,12) else '❌',
+             ('· 미션당 ⚡%3.0f' % f) if v['ascii'] else '· (한글 팩)')
    EOF
    ```
 

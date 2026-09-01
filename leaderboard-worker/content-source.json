@@ -1114,5 +1114,191 @@
     "다음 배포에 들어갑니다"
    ]
   ]
+ },
+ "data:sql": {
+  "bugs": [
+   {
+    "bad": "SELCT id FROM users;",
+    "fix": "SELECT id FROM users;",
+    "err": "ERROR: syntax error at or near \"SELCT\"",
+    "tok": "SELCT"
+   },
+   {
+    "bad": "SELECT * FORM orders;",
+    "fix": "SELECT * FROM orders;",
+    "err": "ERROR: syntax error at or near \"FORM\"",
+    "tok": "FORM"
+   },
+   {
+    "bad": "DELETE FROM cart WEHRE id = 7;",
+    "fix": "DELETE FROM cart WHERE id = 7;",
+    "err": "ERROR: syntax error at or near \"WEHRE\"",
+    "tok": "WEHRE"
+   },
+   {
+    "bad": "SELECT * FROM cart ORDRE BY id;",
+    "fix": "SELECT * FROM cart ORDER BY id;",
+    "err": "ERROR: syntax error at or near \"ORDRE\"",
+    "tok": "ORDRE"
+   },
+   {
+    "bad": "GORUP BY uid, region",
+    "fix": "GROUP BY uid, region",
+    "err": "ERROR: syntax error at or near \"GORUP\"",
+    "tok": "GORUP"
+   },
+   {
+    "bad": "INNER JION pay USING (oid)",
+    "fix": "INNER JOIN pay USING (oid)",
+    "err": "ERROR: syntax error at or near \"JION\"",
+    "tok": "JION"
+   },
+   {
+    "bad": "INSETR INTO sales (d, amt)",
+    "fix": "INSERT INTO sales (d, amt)",
+    "err": "ERROR: syntax error at or near \"INSETR\"",
+    "tok": "INSETR"
+   },
+   {
+    "bad": "CREATE TABEL mart (id INT);",
+    "fix": "CREATE TABLE mart (id INT);",
+    "err": "ERROR: syntax error at or near \"TABEL\"",
+    "tok": "TABEL"
+   },
+   {
+    "bad": "SELECT SUM(amt FROM sales;",
+    "fix": "SELECT SUM(amt) FROM sales;",
+    "err": "ERROR: syntax error at or near \"FROM\"",
+    "tok": ") 닫는 괄호"
+   },
+   {
+    "bad": "SELECT \"userId\" FROM users;",
+    "fix": "SELECT user_id FROM users;",
+    "err": "ERROR: column \"userId\" does not exist",
+    "tok": "큰따옴표 대소문자"
+   },
+   {
+    "bad": "SELECT u.emial FROM users u;",
+    "fix": "SELECT u.email FROM users u;",
+    "err": "ERROR: column u.emial does not exist",
+    "tok": "emial"
+   },
+   {
+    "bad": "WHERE deleted_at = NULL",
+    "fix": "WHERE deleted_at IS NULL",
+    "err": "NULL 은 = 로 비교할 수 없습니다 — 항상 0행이 나옵니다",
+    "tok": "= NULL → IS NULL"
+   },
+   {
+    "bad": "SELECT DISTICT uid FROM cart;",
+    "fix": "SELECT DISTINCT uid FROM cart;",
+    "err": "ERROR: syntax error at or near \"DISTICT\"",
+    "tok": "DISTICT"
+   },
+   {
+    "bad": "HAVNG COUNT(*) > 3",
+    "fix": "HAVING COUNT(*) > 3",
+    "err": "ERROR: syntax error at or near \"HAVNG\"",
+    "tok": "HAVNG"
+   },
+   {
+    "bad": "SELECT d, COUNT(*) FROM log;",
+    "fix": "SELECT d, COUNT(*) FROM log GROUP BY d;",
+    "err": "ERROR: column \"log.d\" must appear in the GROUP BY clause",
+    "tok": "GROUP BY 누락"
+   },
+   {
+    "bad": "OVER (PARITION BY uid)",
+    "fix": "OVER (PARTITION BY uid)",
+    "err": "ERROR: syntax error at or near \"PARITION\"",
+    "tok": "PARITION"
+   },
+   {
+    "bad": "COALSECE(amt, 0) AS amt",
+    "fix": "COALESCE(amt, 0) AS amt",
+    "err": "ERROR: function coalsece(numeric, integer) does not exist",
+    "tok": "COALSECE"
+   },
+   {
+    "bad": "WHERE d > now() - 7",
+    "fix": "WHERE d > now() - INTERVAL '7 days'",
+    "err": "ERROR: operator does not exist: timestamp - integer",
+    "tok": "INTERVAL '7 days'"
+   },
+   {
+    "bad": "paid / total AS rate",
+    "fix": "paid::numeric / total AS rate",
+    "err": "정수끼리 나눠서 소수점이 버려집니다 — 0 만 나옵니다",
+    "tok": "::numeric 캐스팅"
+   },
+   {
+    "bad": "SELECT COUNT(status) FROM orders;",
+    "fix": "SELECT COUNT(*) FROM orders;",
+    "err": "COUNT(컬럼) 은 NULL 을 안 셉니다 — 전체 행 수와 다릅니다",
+    "tok": "COUNT(*) 로"
+   }
+  ],
+  "commits": [
+   "psql -f daily_sales.sql",
+   "dbt run --select daily_sales",
+   "dbt test --select orders",
+   "airflow dags trigger daily_kpi",
+   "git commit -m \"fix: group by uid\"",
+   "git commit -m \"feat: cohort table\"",
+   "bq query --use_legacy_sql=false",
+   "python etl/backfill.py --days 7",
+   "git push origin main",
+   "make refresh-marts"
+  ],
+  "slacks": [
+   [
+    "이 지표 왜 떨어졌나요?",
+    "원인 보고 있습니다"
+   ],
+   [
+    "대시보드 갱신됐나요?",
+    "방금 새로고침했습니다"
+   ],
+   [
+    "이 숫자 맞는 건가요?",
+    "원본이랑 대조했습니다"
+   ],
+   [
+    "쿼리 좀 봐주실 수 있나요?",
+    "이따 확인해드릴게요"
+   ],
+   [
+    "어제 적재 실패했나요?",
+    "재실행 걸어뒀습니다"
+   ],
+   [
+    "코호트 뽑아주실 수 있나요?",
+    "내일까지 드리겠습니다"
+   ],
+   [
+    "이 지표 정의 어디 있죠?",
+    "위키에 정리해뒀습니다"
+   ],
+   [
+    "집계가 두 배로 나와요",
+    "조인 조건 보겠습니다"
+   ],
+   [
+    "테이블 권한 좀 주세요",
+    "방금 부여했습니다"
+   ],
+   [
+    "이번 주 매출 얼마죠?",
+    "지표방에 올려뒀습니다"
+   ],
+   [
+    "쿼리가 너무 느린데요",
+    "인덱스 확인하겠습니다"
+   ],
+   [
+    "샘플링 없이 볼 수 있나요?",
+    "전체로 다시 돌립니다"
+   ]
+  ]
  }
 }
